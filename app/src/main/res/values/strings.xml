@@ -1,3 +1,37 @@
 <resources>
     <string name="app_name">BookMT</string>
+
+    <!-- Bookshelf -->
+    <string name="bookshelf_title">My Library</string>
+    <string name="bookshelf_empty">No books yet. Tap + to import a book.</string>
+    <string name="bookshelf_import">Import book</string>
+    <string name="bookshelf_search_hint">Search title or author</string>
+    <string name="action_grid_view">Grid view</string>
+    <string name="action_list_view">List view</string>
+    <string name="action_sort">Sort</string>
+    <string name="action_filter">Filter</string>
+
+    <!-- Sort options -->
+    <string name="sort_recently_added">Recently added</string>
+    <string name="sort_recently_read">Recently read</string>
+    <string name="sort_title">Title</string>
+    <string name="sort_author">Author</string>
+    <string name="sort_progress">Reading progress</string>
+
+    <!-- Reader -->
+    <string name="reader_loading">Loading book…</string>
+    <string name="reader_settings">Reading settings</string>
+    <string name="reader_notes_bookmarks">Notes &amp; Bookmarks</string>
+    <string name="reader_add_bookmark">Add bookmark</string>
+    <string name="reader_add_note">Add note</string>
+    <string name="reader_highlight">Highlight</string>
+    <string name="reader_table_of_contents">Table of contents</string>
+    <string name="reader_play_tts">Read aloud</string>
+    <string name="reader_stop_tts">Stop</string>
+
+    <!-- Generic -->
+    <string name="action_back">Back</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_delete">Delete</string>
 </resources>
