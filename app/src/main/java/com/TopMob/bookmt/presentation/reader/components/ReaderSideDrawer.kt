@@ -61,9 +61,9 @@ fun ReaderSideDrawer(
         }
         AnimatedVisibility(
             visible = visible,
-            enter = slideInHorizontally { it },
-            exit = slideOutHorizontally { it },
-            modifier = Modifier.align(Alignment.CenterEnd),
+            enter = slideInHorizontally { -it },
+            exit = slideOutHorizontally { -it },
+            modifier = Modifier.align(Alignment.CenterStart),
         ) {
             Surface(
                 tonalElevation = 4.dp,

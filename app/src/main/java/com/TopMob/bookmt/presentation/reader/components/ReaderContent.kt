@@ -21,70 +21,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.TopMob.bookmt.domain.model.BookContent
-import com.TopMob.bookmt.presentation.reader.ReaderPage
 import com.TopMob.bookmt.presentation.reader.ReaderTapZone
 import com.TopMob.bookmt.presentation.theme.ReaderColors
 import androidx.compose.ui.text.TextStyle
 import kotlinx.coroutines.flow.distinctUntilChanged
+import androidx.compose.foundation.gestures.animateScrollBy
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
-/**
- * Paged reading surface backed by [HorizontalPager]. Only the visible (and adjacent pre-loaded)
- * pages are composed, so memory and layout cost stay constant regardless of book size. Tap zones on
- * the left/center/right thirds drive page turns and control toggling.
- */
-@Composable
-fun PagedReaderContent(
-    pages: List<ReaderPage>,
-    currentPageIndex: Int,
-    textStyle: TextStyle,
-    colors: ReaderColors,
-    horizontalPadding: Int,
-    verticalPadding: Int,
-    onPageSettled: (Int) -> Unit,
-    onTapZone: (ReaderTapZone) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val pagerState = rememberPagerState(
-        initialPage = currentPageIndex.coerceIn(0, (pages.size - 1).coerceAtLeast(0)),
-        pageCount = { pages.size },
-    )
 
-    // External jumps (seek bar, TOC) -> move the pager.
-    LaunchedEffect(currentPageIndex) {
-        if (currentPageIndex != pagerState.currentPage) {
-            pagerState.scrollToPage(currentPageIndex)
-        }
-    }
-
-    // Pager settles on a page -> report back to the VM (debounced via settle, deduped here).
-    LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.settledPage }
-            .distinctUntilChanged()
-            .collect(onPageSettled)
-    }
-
-    HorizontalPager(
-        state = pagerState,
-        modifier = modifier
-            .fillMaxSize()
-            .background(colors.background)
-            .pointerInput(Unit) {
-                detectTapGestures { offset ->
-                    onTapZone(ReaderTapZone.fromX(offset.x, size.width.toFloat()))
-                }
-            },
-    ) { pageIndex ->
-        val page = pages[pageIndex]
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = horizontalPadding.dp, vertical = verticalPadding.dp),
-        ) {
-            Text(text = page.text, style = textStyle)
-        }
-    }
-}
 
 /**
  * Continuous vertical-scroll reading surface. Each chapter is one lazy item, so very long books are
@@ -97,11 +42,11 @@ fun ScrollReaderContent(
     colors: ReaderColors,
     horizontalPadding: Int,
     verticalPadding: Int,
+    listState: androidx.compose.foundation.lazy.LazyListState,
     onOffsetChanged: (Int) -> Unit,
-    onTap: () -> Unit,
+    onTapZone: (ReaderTapZone) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val listState = rememberLazyListState()
 
     LaunchedEffect(listState) {
         snapshotFlow { listState.firstVisibleItemIndex }
@@ -117,7 +62,11 @@ fun ScrollReaderContent(
         modifier = modifier
             .fillMaxSize()
             .background(colors.background)
-            .pointerInput(Unit) { detectTapGestures { onTap() } },
+            .pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    onTapZone(ReaderTapZone.fromX(offset.x, size.width.toFloat()))
+                }
+            },
     ) {
         items(
             count = content.chapters.size,

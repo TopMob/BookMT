@@ -89,12 +89,7 @@ class ReaderViewModel @Inject constructor(
             _uiState.update { current ->
                 // Keep the on-screen position synced to the spoken text while playing.
                 val offset = ttsState.currentSegment?.startOffset ?: current.currentOffset
-                val pageIndex = if (ttsState.currentSegment != null) {
-                    ReaderPaginator.pageIndexForOffset(current.pages, offset)
-                } else {
-                    current.currentPageIndex
-                }
-                current.copy(tts = ttsState, currentOffset = offset, currentPageIndex = pageIndex)
+                current.copy(tts = ttsState, currentOffset = offset)
             }
         }
     }
@@ -104,15 +99,11 @@ class ReaderViewModel @Inject constructor(
         when (val result = openBook(bookId)) {
             is Resource.Success -> {
                 val content = result.data
-                val pages = withContext(dispatchers.default) { ReaderPaginator.paginate(content) }
                 val startOffset = book?.lastReadPosition ?: 0
-                val pageIndex = ReaderPaginator.pageIndexForOffset(pages, startOffset)
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         content = content,
-                        pages = pages,
-                        currentPageIndex = pageIndex,
                         currentOffset = startOffset,
                     )
                 }
@@ -128,34 +119,38 @@ class ReaderViewModel @Inject constructor(
 
     /* -------- Navigation within the book -------- */
 
-    fun onPageChanged(pageIndex: Int) {
-        val pages = _uiState.value.pages
-        val page = pages.getOrNull(pageIndex) ?: return
-        _uiState.update { it.copy(currentPageIndex = pageIndex, currentOffset = page.startOffset) }
-        scheduleProgressSave(page.startOffset)
-    }
-
     /** Used by scroll mode, which reports the top-most visible character offset. */
     fun onScrollOffsetChanged(offset: Int) {
-        _uiState.update {
-            it.copy(
-                currentOffset = offset,
-                currentPageIndex = ReaderPaginator.pageIndexForOffset(it.pages, offset),
-            )
-        }
+        _uiState.update { it.copy(currentOffset = offset) }
         scheduleProgressSave(offset)
     }
 
-    fun onSeek(progress: Float) {
-        val total = _uiState.value.totalLength
-        val offset = (progress.coerceIn(0f, 1f) * total).toInt()
-        jumpToOffset(offset)
+    fun onPrevChapter() {
+        val content = _uiState.value.content ?: return
+        val currentOffset = _uiState.value.currentOffset
+        val currentChapter = content.chapterAt(currentOffset) ?: return
+        val index = content.chapters.indexOf(currentChapter)
+        val prevChapter = content.chapters.getOrNull(index - 1)
+        if (prevChapter != null) {
+            jumpToOffset(prevChapter.startOffset)
+        } else {
+            jumpToOffset(0)
+        }
+    }
+
+    fun onNextChapter() {
+        val content = _uiState.value.content ?: return
+        val currentOffset = _uiState.value.currentOffset
+        val currentChapter = content.chapterAt(currentOffset) ?: return
+        val index = content.chapters.indexOf(currentChapter)
+        val nextChapter = content.chapters.getOrNull(index + 1)
+        if (nextChapter != null) {
+            jumpToOffset(nextChapter.startOffset)
+        }
     }
 
     fun jumpToOffset(offset: Int) {
-        val pages = _uiState.value.pages
-        val pageIndex = ReaderPaginator.pageIndexForOffset(pages, offset)
-        _uiState.update { it.copy(currentOffset = offset, currentPageIndex = pageIndex) }
+        _uiState.update { it.copy(currentOffset = offset) }
         scheduleProgressSave(offset)
     }
 
@@ -203,12 +198,15 @@ class ReaderViewModel @Inject constructor(
 
     fun onAddBookmarkAtCurrentPage() {
         val state = _uiState.value
-        val page = state.pages.getOrNull(state.currentPageIndex) ?: return
+        val offset = state.currentOffset
+        val chapter = state.content?.chapterAt(offset) ?: return
+        val localOffset = (offset - chapter.startOffset).coerceIn(0, chapter.text.length)
+        val snippet = chapter.text.substring(localOffset).take(SNIPPET_LENGTH).trim()
         addAnnotation(
             type = BookmarkType.BOOKMARK,
-            start = page.startOffset,
-            end = page.startOffset,
-            snippet = page.text.take(SNIPPET_LENGTH).trim(),
+            start = offset,
+            end = offset,
+            snippet = snippet,
         )
     }
 

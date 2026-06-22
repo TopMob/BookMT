@@ -6,11 +6,18 @@ import android.content.ContextWrapper
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -18,8 +25,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -29,13 +38,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.TopMob.bookmt.domain.model.ReadingMode
-import java.io.File
 import com.TopMob.bookmt.domain.tts.TtsStatus
 import com.TopMob.bookmt.presentation.reader.components.NotesBookmarksPanel
-import com.TopMob.bookmt.presentation.reader.components.PagedReaderContent
 import com.TopMob.bookmt.presentation.reader.components.ReaderBottomBar
-import com.TopMob.bookmt.presentation.reader.components.ReaderSettingsSheet
 import com.TopMob.bookmt.presentation.reader.components.ReaderSideDrawer
 import com.TopMob.bookmt.presentation.reader.components.ReaderTopBar
 import com.TopMob.bookmt.presentation.reader.components.ScrollReaderContent
@@ -56,43 +61,47 @@ fun ReaderScreen(
         enabled = state.settings.brightnessOverrideEnabled,
         level = state.settings.brightnessLevel,
     )
-    VolumeKeyPageTurns(
-        state = state,
-        onPageChange = viewModel::onPageChanged,
-    )
     ReadingTimeTracker(
         onResumed = viewModel::onReadingResumed,
         onPaused = viewModel::onReadingPaused,
     )
 
-    // Picks a TTF/OTF font file, copies it into app storage, and applies it as the reader font.
-    val fontPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        if (uri != null) {
-            val path = copyFontToInternal(context, uri)
-            if (path != null) viewModel.onUpdateSettings { it.copy(customFontPath = path) }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+
+    VolumeKeyScroll { key ->
+        val scrollAmount = listState.layoutInfo.viewportSize.height * 1.0f
+        if (scrollAmount > 0) {
+            scope.launch {
+                if (key == VolumeKey.UP) listState.animateScrollBy(-scrollAmount)
+                else listState.animateScrollBy(scrollAmount)
+            }
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier
+        .fillMaxSize()
+        .background(colors.background)
+    ) {
         ReaderSurface(
             state = state,
             colors = colors,
-            onPageSettled = viewModel::onPageChanged,
+            listState = listState,
+            modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars),
             onScrollOffsetChanged = viewModel::onScrollOffsetChanged,
             onTapZone = { zone ->
                 when (zone) {
-                    ReaderTapZone.LEFT ->
-                        viewModel.onPageChanged((state.currentPageIndex - 1).coerceAtLeast(0))
-                    ReaderTapZone.RIGHT ->
-                        viewModel.onPageChanged(
-                            (state.currentPageIndex + 1).coerceAtMost(state.pages.lastIndex.coerceAtLeast(0)),
-                        )
+                    ReaderTapZone.LEFT -> {
+                        val scrollAmount = listState.layoutInfo.viewportSize.height * 1.0f
+                        if (scrollAmount > 0) scope.launch { listState.animateScrollBy(-scrollAmount) }
+                    }
+                    ReaderTapZone.RIGHT -> {
+                        val scrollAmount = listState.layoutInfo.viewportSize.height * 1.0f
+                        if (scrollAmount > 0) scope.launch { listState.animateScrollBy(scrollAmount) }
+                    }
                     ReaderTapZone.CENTER -> viewModel.onToggleControls()
                 }
             },
-            onScrollTap = viewModel::onToggleControls,
         )
 
         // Left-edge vertical drag adjusts brightness when the override is enabled.
@@ -111,19 +120,29 @@ fun ReaderScreen(
             onBack = onNavigateBack,
             onOpenToc = { viewModel.onShowOverlay(ReaderOverlay.TABLE_OF_CONTENTS) },
             onOpenNotes = { viewModel.onShowOverlay(ReaderOverlay.NOTES) },
-            onOpenSettings = { viewModel.onShowOverlay(ReaderOverlay.SETTINGS) },
+            onToggleTheme = {
+                val nextTheme = when (state.settings.theme) {
+                    com.TopMob.bookmt.domain.model.ReaderTheme.DAY -> com.TopMob.bookmt.domain.model.ReaderTheme.NIGHT
+                    com.TopMob.bookmt.domain.model.ReaderTheme.NIGHT -> com.TopMob.bookmt.domain.model.ReaderTheme.AMOLED_BLACK
+                    else -> com.TopMob.bookmt.domain.model.ReaderTheme.DAY
+                }
+                viewModel.onUpdateSettings { it.copy(theme = nextTheme) }
+            },
         )
 
         Box(modifier = Modifier.align(Alignment.BottomCenter)) {
+            val charsPerPage = 1500
+            val fakeCurrentPage = (state.currentOffset / charsPerPage) + 1
+            val fakeTotalPages = (state.totalLength / charsPerPage) + 1
+
             ReaderBottomBar(
                 visible = state.showControls,
-                progress = state.progress,
-                showSlider = state.settings.showProgressSlider,
-                currentPage = state.currentPageIndex + 1,
-                pageCount = state.pages.size,
+                currentPage = fakeCurrentPage,
+                totalPages = fakeTotalPages,
                 ttsStatus = state.tts.status,
                 activeVoiceId = state.tts.activeVoiceId,
-                onSeek = viewModel::onSeek,
+                onPrevChapter = viewModel::onPrevChapter,
+                onNextChapter = viewModel::onNextChapter,
                 onAddBookmark = viewModel::onAddBookmarkAtCurrentPage,
                 onPlayPauseTts = {
                     when (state.tts.status) {
@@ -165,16 +184,6 @@ fun ReaderScreen(
             )
         }
     }
-
-    if (state.overlay == ReaderOverlay.SETTINGS) {
-        ReaderSettingsSheet(
-            settings = state.settings,
-            onUpdate = viewModel::onUpdateSettings,
-            onPickFont = { fontPicker.launch(FONT_MIME_TYPES) },
-            onClearFont = { viewModel.onUpdateSettings { it.copy(customFontPath = null) } },
-            onDismiss = viewModel::onDismissOverlay,
-        )
-    }
 }
 
 /** Mirrors the reader's foreground lifetime to the view-model so it can accrue reading time. */
@@ -197,35 +206,14 @@ private fun ReadingTimeTracker(onResumed: () -> Unit, onPaused: () -> Unit) {
     }
 }
 
-private val FONT_MIME_TYPES = arrayOf(
-    "font/ttf",
-    "font/otf",
-    "application/x-font-ttf",
-    "application/x-font-otf",
-    "application/octet-stream",
-)
-
-/** Copies a picked font into `filesDir/fonts` and returns its absolute path, or null on failure. */
-private fun copyFontToInternal(context: Context, uri: Uri): String? = runCatching {
-    val dir = File(context.filesDir, "fonts").apply { mkdirs() }
-    val name = (uri.lastPathSegment?.substringAfterLast('/') ?: "custom")
-        .substringBefore('?')
-        .ifBlank { "custom_font" }
-    val target = File(dir, name)
-    context.contentResolver.openInputStream(uri)?.use { input ->
-        target.outputStream().use { output -> input.copyTo(output) }
-    } ?: return null
-    target.absolutePath
-}.getOrNull()
-
 @Composable
 private fun ReaderSurface(
     state: ReaderUiState,
     colors: ReaderColors,
-    onPageSettled: (Int) -> Unit,
+    listState: LazyListState,
     onScrollOffsetChanged: (Int) -> Unit,
     onTapZone: (ReaderTapZone) -> Unit,
-    onScrollTap: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val content = state.content
     when {
@@ -242,25 +230,16 @@ private fun ReaderSurface(
             )
         }
 
-        state.settings.readingMode == ReadingMode.PAGED -> PagedReaderContent(
-            pages = state.pages,
-            currentPageIndex = state.currentPageIndex,
-            textStyle = state.settings.toTextStyle(colors.text),
-            colors = colors,
-            horizontalPadding = state.settings.horizontalMarginDp,
-            verticalPadding = state.settings.verticalMarginDp,
-            onPageSettled = onPageSettled,
-            onTapZone = onTapZone,
-        )
-
         else -> ScrollReaderContent(
             content = content,
             textStyle = state.settings.toTextStyle(colors.text),
             colors = colors,
             horizontalPadding = state.settings.horizontalMarginDp,
             verticalPadding = state.settings.verticalMarginDp,
+            listState = listState,
             onOffsetChanged = onScrollOffsetChanged,
-            onTap = onScrollTap,
+            onTapZone = onTapZone,
+            modifier = modifier,
         )
     }
 }
@@ -284,30 +263,16 @@ private fun BrightnessEdgeStrip(level: Float, onLevelChange: (Float) -> Unit) {
     )
 }
 
-/**
- * Routes hardware volume keys to page navigation while the reader is on screen: Volume Up turns to
- * the previous page, Volume Down to the next, mirroring the left/right tap zones. The handler is
- * registered on the host activity ([VolumeKeyController]) and cleared on dispose, so the keys revert
- * to normal volume control everywhere else. [rememberUpdatedState] keeps the long-lived handler
- * lambda reading the latest page index.
- */
 @Composable
-private fun VolumeKeyPageTurns(
-    state: ReaderUiState,
-    onPageChange: (Int) -> Unit,
+private fun VolumeKeyScroll(
+    onVolumeKey: (VolumeKey) -> Unit,
 ) {
     val activity = LocalContext.current.findActivity()
-    val latestState by rememberUpdatedState(state)
+    val latestOnVolumeKey by rememberUpdatedState(onVolumeKey)
     DisposableEffect(activity) {
         val controller = activity as? VolumeKeyController
         controller?.onVolumeKey = { key ->
-            val s = latestState
-            val target = when (key) {
-                VolumeKey.UP -> (s.currentPageIndex - 1).coerceAtLeast(0)
-                VolumeKey.DOWN ->
-                    (s.currentPageIndex + 1).coerceAtMost(s.pages.lastIndex.coerceAtLeast(0))
-            }
-            onPageChange(target)
+            latestOnVolumeKey(key)
             true
         }
         onDispose { controller?.onVolumeKey = null }

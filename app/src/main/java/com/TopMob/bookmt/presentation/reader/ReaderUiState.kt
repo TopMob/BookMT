@@ -15,8 +15,6 @@ data class ReaderUiState(
     val isLoading: Boolean = true,
     val book: Book? = null,
     val content: BookContent? = null,
-    val pages: List<ReaderPage> = emptyList(),
-    val currentPageIndex: Int = 0,
     val currentOffset: Int = 0,
     val settings: ReaderSettings = ReaderSettings(),
     val bookmarks: List<Bookmark> = emptyList(),

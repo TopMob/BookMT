@@ -8,21 +8,27 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -45,7 +51,7 @@ fun ReaderTopBar(
     onBack: () -> Unit,
     onOpenToc: () -> Unit,
     onOpenNotes: () -> Unit,
-    onOpenSettings: () -> Unit,
+    onToggleTheme: () -> Unit,
 ) {
     AnimatedVisibility(
         visible = visible,
@@ -77,10 +83,10 @@ fun ReaderTopBar(
                         contentDescription = stringResource(R.string.reader_notes_bookmarks),
                     )
                 }
-                IconButton(onClick = onOpenSettings) {
+                IconButton(onClick = onToggleTheme) {
                     Icon(
-                        Icons.Filled.Settings,
-                        contentDescription = stringResource(R.string.reader_settings),
+                        Icons.Filled.Palette,
+                        contentDescription = stringResource(R.string.settings_theme),
                     )
                 }
             },
@@ -95,13 +101,12 @@ fun ReaderTopBar(
 @Composable
 fun ReaderBottomBar(
     visible: Boolean,
-    progress: Float,
-    showSlider: Boolean,
     currentPage: Int,
-    pageCount: Int,
+    totalPages: Int,
     ttsStatus: TtsStatus,
     activeVoiceId: String?,
-    onSeek: (Float) -> Unit,
+    onPrevChapter: () -> Unit,
+    onNextChapter: () -> Unit,
     onAddBookmark: () -> Unit,
     onPlayPauseTts: () -> Unit,
     onStopTts: () -> Unit,
@@ -112,32 +117,32 @@ fun ReaderBottomBar(
         exit = slideOutVertically { it } + fadeOut(),
     ) {
         Surface(tonalElevation = 3.dp) {
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                if (showSlider) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Slider(
-                            value = progress,
-                            onValueChange = onSeek,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Text(
-                            text = "${(progress * 100).toInt()}%",
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.padding(start = 12.dp),
+            Column(modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = onPrevChapter) {
+                        Icon(
+                            Icons.Filled.SkipPrevious,
+                            contentDescription = stringResource(R.string.action_previous),
                         )
                     }
-                } else {
-                    // Slider disabled: show only a clean page indicator.
                     Text(
-                        text = stringResource(
-                            R.string.reader_page_indicator,
-                            currentPage,
-                            pageCount.coerceAtLeast(1),
-                        ),
+                        text = stringResource(R.string.reader_page_indicator, currentPage, totalPages.coerceAtLeast(1)),
                         style = MaterialTheme.typography.labelMedium,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     )
+                    IconButton(onClick = onNextChapter) {
+                        Icon(
+                            Icons.Filled.SkipNext,
+                            contentDescription = stringResource(R.string.action_next),
+                        )
+                    }
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
