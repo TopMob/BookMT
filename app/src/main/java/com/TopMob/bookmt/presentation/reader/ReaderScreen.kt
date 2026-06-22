@@ -3,6 +3,9 @@ package com.TopMob.bookmt.presentation.reader
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -22,8 +25,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.TopMob.bookmt.domain.model.ReadingMode
+import java.io.File
 import com.TopMob.bookmt.domain.tts.TtsStatus
 import com.TopMob.bookmt.presentation.reader.components.NotesBookmarksPanel
 import com.TopMob.bookmt.presentation.reader.components.PagedReaderContent
@@ -42,12 +49,31 @@ fun ReaderScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val colors = ReaderColors.forTheme(state.settings.theme)
+    val context = LocalContext.current
 
     KeepScreenOn(enabled = state.settings.keepScreenOn)
     BrightnessOverride(
         enabled = state.settings.brightnessOverrideEnabled,
         level = state.settings.brightnessLevel,
     )
+    VolumeKeyPageTurns(
+        state = state,
+        onPageChange = viewModel::onPageChanged,
+    )
+    ReadingTimeTracker(
+        onResumed = viewModel::onReadingResumed,
+        onPaused = viewModel::onReadingPaused,
+    )
+
+    // Picks a TTF/OTF font file, copies it into app storage, and applies it as the reader font.
+    val fontPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            val path = copyFontToInternal(context, uri)
+            if (path != null) viewModel.onUpdateSettings { it.copy(customFontPath = path) }
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         ReaderSurface(
@@ -92,6 +118,9 @@ fun ReaderScreen(
             ReaderBottomBar(
                 visible = state.showControls,
                 progress = state.progress,
+                showSlider = state.settings.showProgressSlider,
+                currentPage = state.currentPageIndex + 1,
+                pageCount = state.pages.size,
                 ttsStatus = state.tts.status,
                 activeVoiceId = state.tts.activeVoiceId,
                 onSeek = viewModel::onSeek,
@@ -141,10 +170,53 @@ fun ReaderScreen(
         ReaderSettingsSheet(
             settings = state.settings,
             onUpdate = viewModel::onUpdateSettings,
+            onPickFont = { fontPicker.launch(FONT_MIME_TYPES) },
+            onClearFont = { viewModel.onUpdateSettings { it.copy(customFontPath = null) } },
             onDismiss = viewModel::onDismissOverlay,
         )
     }
 }
+
+/** Mirrors the reader's foreground lifetime to the view-model so it can accrue reading time. */
+@Composable
+private fun ReadingTimeTracker(onResumed: () -> Unit, onPaused: () -> Unit) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> onResumed()
+                Lifecycle.Event.ON_PAUSE -> onPaused()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            onPaused()
+        }
+    }
+}
+
+private val FONT_MIME_TYPES = arrayOf(
+    "font/ttf",
+    "font/otf",
+    "application/x-font-ttf",
+    "application/x-font-otf",
+    "application/octet-stream",
+)
+
+/** Copies a picked font into `filesDir/fonts` and returns its absolute path, or null on failure. */
+private fun copyFontToInternal(context: Context, uri: Uri): String? = runCatching {
+    val dir = File(context.filesDir, "fonts").apply { mkdirs() }
+    val name = (uri.lastPathSegment?.substringAfterLast('/') ?: "custom")
+        .substringBefore('?')
+        .ifBlank { "custom_font" }
+    val target = File(dir, name)
+    context.contentResolver.openInputStream(uri)?.use { input ->
+        target.outputStream().use { output -> input.copyTo(output) }
+    } ?: return null
+    target.absolutePath
+}.getOrNull()
 
 @Composable
 private fun ReaderSurface(
@@ -210,6 +282,36 @@ private fun BrightnessEdgeStrip(level: Float, onLevelChange: (Float) -> Unit) {
                 }
             },
     )
+}
+
+/**
+ * Routes hardware volume keys to page navigation while the reader is on screen: Volume Up turns to
+ * the previous page, Volume Down to the next, mirroring the left/right tap zones. The handler is
+ * registered on the host activity ([VolumeKeyController]) and cleared on dispose, so the keys revert
+ * to normal volume control everywhere else. [rememberUpdatedState] keeps the long-lived handler
+ * lambda reading the latest page index.
+ */
+@Composable
+private fun VolumeKeyPageTurns(
+    state: ReaderUiState,
+    onPageChange: (Int) -> Unit,
+) {
+    val activity = LocalContext.current.findActivity()
+    val latestState by rememberUpdatedState(state)
+    DisposableEffect(activity) {
+        val controller = activity as? VolumeKeyController
+        controller?.onVolumeKey = { key ->
+            val s = latestState
+            val target = when (key) {
+                VolumeKey.UP -> (s.currentPageIndex - 1).coerceAtLeast(0)
+                VolumeKey.DOWN ->
+                    (s.currentPageIndex + 1).coerceAtMost(s.pages.lastIndex.coerceAtLeast(0))
+            }
+            onPageChange(target)
+            true
+        }
+        onDispose { controller?.onVolumeKey = null }
+    }
 }
 
 @Composable

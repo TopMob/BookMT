@@ -18,6 +18,7 @@ import com.TopMob.bookmt.domain.usecase.UpdateReadingProgressUseCase
 import com.TopMob.bookmt.presentation.navigation.Screen
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -53,6 +54,9 @@ class ReaderViewModel @Inject constructor(
     val uiState: StateFlow<ReaderUiState> = _uiState.asStateFlow()
 
     private var progressSaveJob: Job? = null
+
+    /** Wall-clock start of the current foreground reading session, or null when paused. */
+    private var sessionStartMs: Long? = null
 
     init {
         observeSettings()
@@ -171,6 +175,23 @@ class ReaderViewModel @Inject constructor(
         _uiState.update { it.copy(overlay = overlay, showControls = false) }
 
     fun onDismissOverlay() = _uiState.update { it.copy(overlay = ReaderOverlay.NONE) }
+
+    /* -------- Reading-time statistics -------- */
+
+    /** Called when the reader returns to the foreground; starts a new timing session. */
+    fun onReadingResumed() {
+        sessionStartMs = System.currentTimeMillis()
+    }
+
+    /** Called when the reader leaves the foreground; persists the elapsed reading time. */
+    fun onReadingPaused() {
+        val start = sessionStartMs ?: return
+        sessionStartMs = null
+        val elapsed = System.currentTimeMillis() - start
+        if (elapsed <= 0L) return
+        // NonCancellable: the write must survive the scope being torn down on navigate-back.
+        viewModelScope.launch(NonCancellable) { bookRepository.addReadingTime(bookId, elapsed) }
+    }
 
     /* -------- Settings -------- */
 

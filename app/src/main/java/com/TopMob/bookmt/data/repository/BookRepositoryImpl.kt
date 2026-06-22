@@ -2,6 +2,7 @@ package com.TopMob.bookmt.data.repository
 
 import android.content.ContentResolver
 import android.net.Uri
+import android.provider.OpenableColumns
 import com.TopMob.bookmt.core.common.DispatcherProvider
 import com.TopMob.bookmt.core.common.Resource
 import com.TopMob.bookmt.data.local.dao.BookDao
@@ -63,6 +64,7 @@ class BookRepositoryImpl(
                 format = parser.format.takeIf { it != BookFormat.UNKNOWN }
                     ?: BookFormat.fromFileName(fileName),
                 addedTimestamp = now(),
+                fileSizeBytes = fileSizeOf(uri),
             ).toEntity()
 
             val id = bookDao.insert(entity)
@@ -99,6 +101,24 @@ class BookRepositoryImpl(
         withContext(dispatchers.io) { bookDao.updateTags(bookId, tags) }
     }
 
+    override suspend fun updateMetadata(
+        bookId: Long,
+        title: String,
+        author: String?,
+        description: String?,
+        coverImagePath: String?,
+        tags: List<String>,
+    ) {
+        withContext(dispatchers.io) {
+            bookDao.updateMetadata(bookId, title, author, description, coverImagePath, tags)
+        }
+    }
+
+    override suspend fun addReadingTime(bookId: Long, deltaMs: Long) {
+        if (deltaMs <= 0L) return
+        withContext(dispatchers.io) { bookDao.addReadingTime(bookId, deltaMs) }
+    }
+
     override suspend fun deleteBook(bookId: Long) {
         withContext(dispatchers.io) { bookDao.deleteById(bookId) }
     }
@@ -106,4 +126,12 @@ class BookRepositoryImpl(
     private fun openStream(uri: String) =
         contentResolver.openInputStream(Uri.parse(uri))
             ?: throw IOException("Cannot open stream for $uri")
+
+    /** Best-effort file size via the SAF metadata column; 0 when the provider doesn't report it. */
+    private fun fileSizeOf(uri: String): Long = runCatching {
+        contentResolver.query(Uri.parse(uri), null, null, null, null)?.use { cursor ->
+            val idx = cursor.getColumnIndex(OpenableColumns.SIZE)
+            if (idx >= 0 && cursor.moveToFirst() && !cursor.isNull(idx)) cursor.getLong(idx) else 0L
+        } ?: 0L
+    }.getOrDefault(0L)
 }

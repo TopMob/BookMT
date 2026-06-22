@@ -62,6 +62,8 @@ class ReaderSettingsDataStore(private val context: Context) {
             brightnessOverrideEnabled = this[Keys.BRIGHTNESS_OVERRIDE] ?: defaults.brightnessOverrideEnabled,
             brightnessLevel = this[Keys.BRIGHTNESS_LEVEL] ?: defaults.brightnessLevel,
             keepScreenOn = this[Keys.KEEP_SCREEN_ON] ?: defaults.keepScreenOn,
+            showProgressSlider = this[Keys.SHOW_SLIDER] ?: defaults.showProgressSlider,
+            customFontPath = this[Keys.CUSTOM_FONT_PATH] ?: defaults.customFontPath,
         )
     }
 
@@ -77,6 +79,9 @@ class ReaderSettingsDataStore(private val context: Context) {
         this[Keys.BRIGHTNESS_OVERRIDE] = s.brightnessOverrideEnabled
         this[Keys.BRIGHTNESS_LEVEL] = s.brightnessLevel
         this[Keys.KEEP_SCREEN_ON] = s.keepScreenOn
+        this[Keys.SHOW_SLIDER] = s.showProgressSlider
+        val fontPath = s.customFontPath
+        if (fontPath == null) this.remove(Keys.CUSTOM_FONT_PATH) else this[Keys.CUSTOM_FONT_PATH] = fontPath
     }
 
     private fun <T : Enum<T>> decodeEnum(name: String?, values: List<T>, default: T): T =
@@ -94,5 +99,7 @@ class ReaderSettingsDataStore(private val context: Context) {
         val BRIGHTNESS_OVERRIDE = booleanPreferencesKey("brightness_override")
         val BRIGHTNESS_LEVEL = floatPreferencesKey("brightness_level")
         val KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
+        val SHOW_SLIDER = booleanPreferencesKey("show_slider")
+        val CUSTOM_FONT_PATH = stringPreferencesKey("custom_font_path")
     }
 }

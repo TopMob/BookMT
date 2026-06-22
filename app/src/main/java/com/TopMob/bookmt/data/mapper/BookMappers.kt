@@ -21,6 +21,9 @@ fun BookEntity.toDomain(): Book = Book(
     addedTimestamp = addedTimestamp,
     tags = tags,
     lastReadPosition = lastReadPosition,
+    description = description,
+    fileSizeBytes = fileSize,
+    totalReadingTimeMs = totalReadingTimeMs,
 )
 
 fun Book.toEntity(): BookEntity = BookEntity(
@@ -35,6 +38,9 @@ fun Book.toEntity(): BookEntity = BookEntity(
     lastReadTimestamp = lastReadTimestamp,
     addedTimestamp = addedTimestamp,
     tags = tags,
+    description = description,
+    fileSize = fileSizeBytes,
+    totalReadingTimeMs = totalReadingTimeMs,
 )
 
 /* ---- Bookmark <-> BookmarkEntity ---- */

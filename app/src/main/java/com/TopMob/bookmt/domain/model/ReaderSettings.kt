@@ -18,6 +18,10 @@ data class ReaderSettings(
     /** Manual brightness 0f..1f used when [brightnessOverrideEnabled] is true. */
     val brightnessLevel: Float = 0.5f,
     val keepScreenOn: Boolean = true,
+    /** When false the bottom bar hides the seek slider and shows only the page number. */
+    val showProgressSlider: Boolean = true,
+    /** Absolute path to a user-supplied TTF/OTF font; overrides [fontFamily] when set. */
+    val customFontPath: String? = null,
 ) {
     companion object {
         const val MIN_FONT_SIZE_SP = 10f

@@ -6,10 +6,13 @@ import com.TopMob.bookmt.core.common.DispatcherProvider
 import com.TopMob.bookmt.data.local.dao.BookDao
 import com.TopMob.bookmt.data.local.dao.BookmarkDao
 import com.TopMob.bookmt.data.parser.BookParserFactory
+import com.TopMob.bookmt.data.repository.AppSettingsRepositoryImpl
 import com.TopMob.bookmt.data.repository.BookRepositoryImpl
 import com.TopMob.bookmt.data.repository.BookmarkRepositoryImpl
 import com.TopMob.bookmt.data.repository.ReaderSettingsRepositoryImpl
+import com.TopMob.bookmt.data.settings.AppSettingsDataStore
 import com.TopMob.bookmt.data.settings.ReaderSettingsDataStore
+import com.TopMob.bookmt.domain.repository.AppSettingsRepository
 import com.TopMob.bookmt.domain.repository.BookRepository
 import com.TopMob.bookmt.domain.repository.BookmarkRepository
 import com.TopMob.bookmt.domain.repository.ReaderSettingsRepository
@@ -32,6 +35,11 @@ object RepositoryModule {
 
     @Provides
     @Singleton
+    fun provideAppSettingsDataStore(@ApplicationContext context: Context): AppSettingsDataStore =
+        AppSettingsDataStore(context)
+
+    @Provides
+    @Singleton
     fun provideBookRepository(
         bookDao: BookDao,
         parserFactory: BookParserFactory,
@@ -51,4 +59,10 @@ object RepositoryModule {
     fun provideReaderSettingsRepository(
         dataStore: ReaderSettingsDataStore,
     ): ReaderSettingsRepository = ReaderSettingsRepositoryImpl(dataStore)
+
+    @Provides
+    @Singleton
+    fun provideAppSettingsRepository(
+        dataStore: AppSettingsDataStore,
+    ): AppSettingsRepository = AppSettingsRepositoryImpl(dataStore)
 }

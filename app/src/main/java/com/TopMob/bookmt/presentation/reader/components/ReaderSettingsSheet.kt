@@ -9,21 +9,31 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.TopMob.bookmt.R
 import com.TopMob.bookmt.domain.model.ReaderFontFamily
 import com.TopMob.bookmt.domain.model.ReaderSettings
 import com.TopMob.bookmt.domain.model.ReaderTextAlignment
 import com.TopMob.bookmt.domain.model.ReaderTheme
 import com.TopMob.bookmt.domain.model.ReadingMode
+import java.io.File
 
 /** Bottom-sheet of live reading preferences. Every change persists immediately via [onUpdate]. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,6 +41,8 @@ import com.TopMob.bookmt.domain.model.ReadingMode
 fun ReaderSettingsSheet(
     settings: ReaderSettings,
     onUpdate: ((ReaderSettings) -> ReaderSettings) -> Unit,
+    onPickFont: () -> Unit,
+    onClearFont: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -38,6 +50,7 @@ fun ReaderSettingsSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp),
         ) {
@@ -93,7 +106,47 @@ fun ReaderSettingsSheet(
                 label = { if (it == ReadingMode.PAGED) "Paged" else "Scroll" },
                 onSelect = { mode -> onUpdate { it.copy(readingMode = mode) } },
             )
+
+            SectionLabel(stringResource(R.string.reader_show_slider))
+            ToggleRow(
+                label = stringResource(R.string.reader_show_slider_desc),
+                checked = settings.showProgressSlider,
+                onCheckedChange = { on -> onUpdate { it.copy(showProgressSlider = on) } },
+            )
+
+            SectionLabel(stringResource(R.string.reader_custom_font))
+            Text(
+                text = settings.customFontPath?.let { File(it).name }
+                    ?: stringResource(R.string.reader_custom_font_default),
+                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(onClick = onPickFont) {
+                    Text(stringResource(R.string.reader_custom_font_pick))
+                }
+                if (settings.customFontPath != null) {
+                    TextButton(onClick = onClearFont) {
+                        Text(stringResource(R.string.reader_custom_font_clear))
+                    }
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun ToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = label, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 

@@ -14,6 +14,9 @@ package com.TopMob.bookmt.domain.model
  * @property addedTimestamp Epoch millis when imported.
  * @property tags User-assigned custom tags used for filtering.
  * @property lastReadPosition Absolute character offset into the book's flattened text.
+ * @property description Optional user-editable synopsis/notes shown on the book card.
+ * @property fileSizeBytes Size of the source file in bytes (0 if unknown).
+ * @property totalReadingTimeMs Accumulated time the user has spent reading this book, in millis.
  */
 data class Book(
     val id: Long = 0L,
@@ -27,9 +30,43 @@ data class Book(
     val addedTimestamp: Long = 0L,
     val tags: List<String> = emptyList(),
     val lastReadPosition: Int = 0,
+    val description: String? = null,
+    val fileSizeBytes: Long = 0L,
+    val totalReadingTimeMs: Long = 0L,
 ) {
     /** Progress expressed as a 0..100 integer for UI badges. */
     val progressPercent: Int get() = (progress.coerceIn(0f, 1f) * 100).toInt()
 
     val hasBeenOpened: Boolean get() = lastReadTimestamp > 0L
+
+    val isFinished: Boolean get() = progress >= 1f
+
+    /**
+     * Rough estimate of the book's total character length, inferred from how far the last-read
+     * position is into the recorded progress. Null until there's enough signal to estimate.
+     */
+    val estimatedTotalChars: Int?
+        get() = if (progress > 0.01f && lastReadPosition > 0) {
+            (lastReadPosition / progress).toInt()
+        } else {
+            null
+        }
+
+    /** Average reading speed in characters per minute, or null if not enough data. */
+    val charsPerMinute: Double?
+        get() = if (totalReadingTimeMs > 60_000L && lastReadPosition > 0) {
+            lastReadPosition / (totalReadingTimeMs / 60_000.0)
+        } else {
+            null
+        }
+
+    /** Estimated milliseconds remaining to finish the book at the current average speed. */
+    val estimatedRemainingMs: Long?
+        get() {
+            val cpm = charsPerMinute ?: return null
+            val total = estimatedTotalChars ?: return null
+            val remainingChars = (total - lastReadPosition).coerceAtLeast(0)
+            if (cpm <= 0.0) return null
+            return ((remainingChars / cpm) * 60_000.0).toLong()
+        }
 }

@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.TopMob.bookmt.R
@@ -95,6 +96,9 @@ fun ReaderTopBar(
 fun ReaderBottomBar(
     visible: Boolean,
     progress: Float,
+    showSlider: Boolean,
+    currentPage: Int,
+    pageCount: Int,
     ttsStatus: TtsStatus,
     activeVoiceId: String?,
     onSeek: (Float) -> Unit,
@@ -109,16 +113,30 @@ fun ReaderBottomBar(
     ) {
         Surface(tonalElevation = 3.dp) {
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Slider(
-                        value = progress,
-                        onValueChange = onSeek,
-                        modifier = Modifier.weight(1f),
-                    )
+                if (showSlider) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Slider(
+                            value = progress,
+                            onValueChange = onSeek,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            text = "${(progress * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.padding(start = 12.dp),
+                        )
+                    }
+                } else {
+                    // Slider disabled: show only a clean page indicator.
                     Text(
-                        text = "${(progress * 100).toInt()}%",
+                        text = stringResource(
+                            R.string.reader_page_indicator,
+                            currentPage,
+                            pageCount.coerceAtLeast(1),
+                        ),
                         style = MaterialTheme.typography.labelMedium,
-                        modifier = Modifier.padding(start = 12.dp),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     )
                 }
                 Row(

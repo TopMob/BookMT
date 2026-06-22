@@ -3,6 +3,7 @@ package com.TopMob.bookmt.presentation.bookshelf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.TopMob.bookmt.core.common.Resource
+import com.TopMob.bookmt.domain.model.Book
 import com.TopMob.bookmt.domain.model.BookQuery
 import com.TopMob.bookmt.domain.model.BookSortOrder
 import com.TopMob.bookmt.domain.repository.BookRepository
@@ -89,6 +90,42 @@ class BookshelfViewModel @Inject constructor(
 
     fun onDeleteBook(bookId: Long) {
         viewModelScope.launch { bookRepository.deleteBook(bookId) }
+    }
+
+    /**
+     * Toggles a book's read state. The library has no dedicated "read" flag, so read is modeled as
+     * full progress (1f) and unread as zero progress reset to the start of the book.
+     */
+    fun onSetReadState(book: Book, read: Boolean) {
+        viewModelScope.launch { applyReadState(book, read) }
+    }
+
+    /* -------- Batch (multi-select) operations -------- */
+
+    fun onDeleteBooks(ids: Collection<Long>) {
+        viewModelScope.launch { ids.forEach { bookRepository.deleteBook(it) } }
+    }
+
+    fun onSetReadStateForBooks(books: Collection<Book>, read: Boolean) {
+        viewModelScope.launch { books.forEach { applyReadState(it, read) } }
+    }
+
+    fun onAddTagToBooks(books: Collection<Book>, tag: String) {
+        val trimmed = tag.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch {
+            books.forEach { book ->
+                if (trimmed !in book.tags) bookRepository.updateTags(book.id, book.tags + trimmed)
+            }
+        }
+    }
+
+    private suspend fun applyReadState(book: Book, read: Boolean) {
+        if (read) {
+            bookRepository.updateProgress(book.id, progress = 1f, position = book.lastReadPosition)
+        } else {
+            bookRepository.updateProgress(book.id, progress = 0f, position = 0)
+        }
     }
 
     fun onErrorShown() {

@@ -2,6 +2,7 @@ package com.TopMob.bookmt.core.di
 
 import com.TopMob.bookmt.core.common.DispatcherProvider
 import com.TopMob.bookmt.data.parser.BookParserFactory
+import com.TopMob.bookmt.data.parser.EpubBookParser
 import com.TopMob.bookmt.data.parser.Fb2BookParser
 import com.TopMob.bookmt.data.parser.MarkdownBookParser
 import com.TopMob.bookmt.data.parser.PdfBookParser
@@ -34,6 +35,10 @@ object ParserModule {
     @Provides
     @IntoSet
     fun provideFb2Parser(dispatchers: DispatcherProvider): BookParser = Fb2BookParser(dispatchers)
+
+    @Provides
+    @IntoSet
+    fun provideEpubParser(dispatchers: DispatcherProvider): BookParser = EpubBookParser(dispatchers)
 
     @Provides
     @IntoSet

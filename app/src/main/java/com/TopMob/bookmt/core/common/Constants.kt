@@ -4,6 +4,7 @@ package com.TopMob.bookmt.core.common
 object Constants {
     const val DATABASE_NAME = "bookmt.db"
     const val SETTINGS_DATASTORE_NAME = "reader_settings"
+    const val APP_SETTINGS_DATASTORE_NAME = "app_settings"
 
     /**
      * Size (in characters) of a single rendering "page slice" used by the paginated reader. Keeping

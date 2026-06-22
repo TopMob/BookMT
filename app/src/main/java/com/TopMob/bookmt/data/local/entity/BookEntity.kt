@@ -50,4 +50,13 @@ data class BookEntity(
 
     @ColumnInfo(name = "tags")
     val tags: List<String>,
+
+    @ColumnInfo(name = "description")
+    val description: String? = null,
+
+    @ColumnInfo(name = "file_size")
+    val fileSize: Long = 0L,
+
+    @ColumnInfo(name = "total_reading_time_ms")
+    val totalReadingTimeMs: Long = 0L,
 )

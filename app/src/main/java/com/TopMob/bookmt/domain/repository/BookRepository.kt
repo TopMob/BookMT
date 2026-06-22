@@ -31,5 +31,18 @@ interface BookRepository {
 
     suspend fun updateTags(bookId: Long, tags: List<String>)
 
+    /** Updates the user-editable card fields (title, author, description, cover, tags). */
+    suspend fun updateMetadata(
+        bookId: Long,
+        title: String,
+        author: String?,
+        description: String?,
+        coverImagePath: String?,
+        tags: List<String>,
+    )
+
+    /** Adds [deltaMs] to a book's accumulated reading-time counter. */
+    suspend fun addReadingTime(bookId: Long, deltaMs: Long)
+
     suspend fun deleteBook(bookId: Long)
 }

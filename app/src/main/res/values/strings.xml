@@ -10,6 +10,64 @@
     <string name="action_list_view">List view</string>
     <string name="action_sort">Sort</string>
     <string name="action_filter">Filter</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_search">Search</string>
+    <string name="action_more">More</string>
+
+    <!-- Book context menu (long-press) -->
+    <string name="book_menu_info">Book info</string>
+    <string name="book_menu_mark_read">Mark as read</string>
+    <string name="book_menu_mark_unread">Mark as unread</string>
+    <string name="book_menu_select">Select</string>
+    <string name="book_menu_add_tag">Add tag</string>
+    <string name="book_menu_delete">Delete book</string>
+    <string name="book_info_title">Book info</string>
+    <string name="book_info_author">Author</string>
+    <string name="book_info_format">Format</string>
+    <string name="book_info_progress">Progress</string>
+    <string name="book_info_unknown_author">Unknown author</string>
+    <string name="book_info_progress_value">%1$d%%</string>
+    <string name="delete_book_title">Delete book?</string>
+    <string name="delete_book_message">\"%1$s\" will be permanently removed from your library.</string>
+
+    <!-- Multi-select -->
+    <string name="selection_count">%1$d selected</string>
+    <string name="delete_books_title">Delete books?</string>
+    <string name="delete_books_message">%1$d books will be permanently removed from your library.</string>
+    <string name="add_tag_hint">Tag name</string>
+
+    <!-- Book details / edit -->
+    <string name="book_details_title">Book details</string>
+    <string name="book_details_loading">Loading…</string>
+    <string name="book_details_change_cover">Change cover</string>
+    <string name="book_details_field_title">Title</string>
+    <string name="book_details_field_author">Author</string>
+    <string name="book_details_field_description">Description</string>
+    <string name="book_details_field_tags">Tags</string>
+    <string name="book_details_tags_hint">Comma-separated</string>
+    <string name="book_details_stats">Statistics</string>
+    <string name="book_details_technical">Technical info</string>
+    <string name="book_details_size">File size</string>
+    <string name="book_details_added">Added</string>
+    <string name="book_details_path">Path</string>
+    <string name="stats_reading_time">Reading time</string>
+    <string name="stats_speed">Speed</string>
+    <string name="stats_speed_value">%1$d chars/min</string>
+    <string name="stats_remaining">Time left</string>
+
+    <!-- App settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_language">Language</string>
+    <string name="language_system">System default</string>
+    <string name="language_english">English</string>
+    <string name="language_russian">Russian</string>
+    <string name="settings_backup">Backup &amp; restore</string>
+    <string name="settings_backup_desc">Export your library, statistics, bookmarks and settings to a single file, or restore from one.</string>
+    <string name="backup_export">Export</string>
+    <string name="backup_import">Import</string>
+    <string name="backup_exported">Backup exported</string>
+    <string name="backup_imported">Backup restored. Restarting…</string>
+    <string name="backup_failed">Backup operation failed</string>
 
     <!-- Sort options -->
     <string name="sort_recently_added">Recently added</string>
@@ -28,10 +86,18 @@
     <string name="reader_table_of_contents">Table of contents</string>
     <string name="reader_play_tts">Read aloud</string>
     <string name="reader_stop_tts">Stop</string>
+    <string name="reader_show_slider">Progress slider</string>
+    <string name="reader_show_slider_desc">Show seek slider (off = page number only)</string>
+    <string name="reader_page_indicator">%1$d / %2$d</string>
+    <string name="reader_custom_font">Custom font</string>
+    <string name="reader_custom_font_default">Built-in font</string>
+    <string name="reader_custom_font_pick">Choose font…</string>
+    <string name="reader_custom_font_clear">Reset</string>
 
     <!-- Generic -->
     <string name="action_back">Back</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_save">Save</string>
     <string name="action_delete">Delete</string>
+    <string name="action_close">Close</string>
 </resources>

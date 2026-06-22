@@ -1,0 +1,103 @@
+<resources>
+    <string name="app_name">BookMT</string>
+
+    <!-- Bookshelf -->
+    <string name="bookshelf_title">Моя библиотека</string>
+    <string name="bookshelf_empty">Пока нет книг. Нажмите +, чтобы импортировать книгу.</string>
+    <string name="bookshelf_import">Импортировать книгу</string>
+    <string name="bookshelf_search_hint">Поиск по названию или автору</string>
+    <string name="action_grid_view">Сетка</string>
+    <string name="action_list_view">Список</string>
+    <string name="action_sort">Сортировка</string>
+    <string name="action_filter">Фильтр</string>
+    <string name="action_settings">Настройки</string>
+    <string name="action_search">Поиск</string>
+    <string name="action_more">Ещё</string>
+
+    <!-- Book context menu (long-press) -->
+    <string name="book_menu_info">О книге</string>
+    <string name="book_menu_mark_read">Отметить как прочитанную</string>
+    <string name="book_menu_mark_unread">Отметить как непрочитанную</string>
+    <string name="book_menu_select">Выбрать</string>
+    <string name="book_menu_add_tag">Добавить тег</string>
+    <string name="book_menu_delete">Удалить книгу</string>
+    <string name="book_info_title">О книге</string>
+    <string name="book_info_author">Автор</string>
+    <string name="book_info_format">Формат</string>
+    <string name="book_info_progress">Прогресс</string>
+    <string name="book_info_unknown_author">Автор неизвестен</string>
+    <string name="book_info_progress_value">%1$d%%</string>
+    <string name="delete_book_title">Удалить книгу?</string>
+    <string name="delete_book_message">«%1$s» будет безвозвратно удалена из вашей библиотеки.</string>
+
+    <!-- Multi-select -->
+    <string name="selection_count">Выбрано: %1$d</string>
+    <string name="delete_books_title">Удалить книги?</string>
+    <string name="delete_books_message">%1$d книг(и) будут безвозвратно удалены из вашей библиотеки.</string>
+    <string name="add_tag_hint">Название тега</string>
+
+    <!-- Book details / edit -->
+    <string name="book_details_title">О книге</string>
+    <string name="book_details_loading">Загрузка…</string>
+    <string name="book_details_change_cover">Сменить обложку</string>
+    <string name="book_details_field_title">Название</string>
+    <string name="book_details_field_author">Автор</string>
+    <string name="book_details_field_description">Описание</string>
+    <string name="book_details_field_tags">Теги</string>
+    <string name="book_details_tags_hint">Через запятую</string>
+    <string name="book_details_stats">Статистика</string>
+    <string name="book_details_technical">Техническая информация</string>
+    <string name="book_details_size">Размер файла</string>
+    <string name="book_details_added">Добавлена</string>
+    <string name="book_details_path">Путь</string>
+    <string name="stats_reading_time">Время чтения</string>
+    <string name="stats_speed">Скорость</string>
+    <string name="stats_speed_value">%1$d зн./мин</string>
+    <string name="stats_remaining">Осталось</string>
+
+    <!-- App settings -->
+    <string name="settings_title">Настройки</string>
+    <string name="settings_language">Язык</string>
+    <string name="language_system">Системный</string>
+    <string name="language_english">Английский</string>
+    <string name="language_russian">Русский</string>
+    <string name="settings_backup">Резервная копия</string>
+    <string name="settings_backup_desc">Экспортируйте библиотеку, статистику, закладки и настройки в один файл или восстановите из него.</string>
+    <string name="backup_export">Экспорт</string>
+    <string name="backup_import">Импорт</string>
+    <string name="backup_exported">Резервная копия создана</string>
+    <string name="backup_imported">Данные восстановлены. Перезапуск…</string>
+    <string name="backup_failed">Не удалось выполнить операцию</string>
+
+    <!-- Sort options -->
+    <string name="sort_recently_added">Недавно добавленные</string>
+    <string name="sort_recently_read">Недавно читаемые</string>
+    <string name="sort_title">Название</string>
+    <string name="sort_author">Автор</string>
+    <string name="sort_progress">Прогресс чтения</string>
+
+    <!-- Reader -->
+    <string name="reader_loading">Загрузка книги…</string>
+    <string name="reader_settings">Настройки чтения</string>
+    <string name="reader_notes_bookmarks">Заметки и закладки</string>
+    <string name="reader_add_bookmark">Добавить закладку</string>
+    <string name="reader_add_note">Добавить заметку</string>
+    <string name="reader_highlight">Выделить</string>
+    <string name="reader_table_of_contents">Содержание</string>
+    <string name="reader_play_tts">Озвучить</string>
+    <string name="reader_stop_tts">Стоп</string>
+    <string name="reader_show_slider">Ползунок прогресса</string>
+    <string name="reader_show_slider_desc">Показывать ползунок (выкл. = только номер страницы)</string>
+    <string name="reader_page_indicator">%1$d / %2$d</string>
+    <string name="reader_custom_font">Свой шрифт</string>
+    <string name="reader_custom_font_default">Встроенный шрифт</string>
+    <string name="reader_custom_font_pick">Выбрать шрифт…</string>
+    <string name="reader_custom_font_clear">Сбросить</string>
+
+    <!-- Generic -->
+    <string name="action_back">Назад</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="action_save">Сохранить</string>
+    <string name="action_delete">Удалить</string>
+    <string name="action_close">Закрыть</string>
+</resources>

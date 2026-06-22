@@ -44,6 +44,29 @@ interface BookDao {
     @Query("UPDATE books SET tags = :tags WHERE id = :bookId")
     suspend fun updateTags(bookId: Long, tags: List<String>)
 
+    @Query(
+        """
+        UPDATE books
+        SET title = :title,
+            author = :author,
+            description = :description,
+            cover_image_path = :coverImagePath,
+            tags = :tags
+        WHERE id = :bookId
+        """,
+    )
+    suspend fun updateMetadata(
+        bookId: Long,
+        title: String,
+        author: String?,
+        description: String?,
+        coverImagePath: String?,
+        tags: List<String>,
+    )
+
+    @Query("UPDATE books SET total_reading_time_ms = total_reading_time_ms + :deltaMs WHERE id = :bookId")
+    suspend fun addReadingTime(bookId: Long, deltaMs: Long)
+
     @Query("DELETE FROM books WHERE id = :bookId")
     suspend fun deleteById(bookId: Long)
 }
