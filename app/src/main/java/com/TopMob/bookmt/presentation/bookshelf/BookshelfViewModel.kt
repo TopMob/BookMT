@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -40,7 +39,6 @@ class BookshelfViewModel @Inject constructor(
     private val transientError = MutableStateFlow<String?>(null)
 
     private val booksFlow = query
-        .distinctUntilChanged()
         .flatMapLatest { q -> getBooks(q) }
 
     val uiState: StateFlow<BookshelfUiState> = combine(

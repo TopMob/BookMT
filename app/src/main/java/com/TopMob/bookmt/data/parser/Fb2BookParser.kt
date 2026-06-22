@@ -51,7 +51,8 @@ class Fb2BookParser(
             )
         }
 
-    private fun parseInternal(input: InputStream, metadataOnly: Boolean): Parsed = try {
+    private fun parseInternal(input: InputStream, metadataOnly: Boolean): Parsed {
+        return try {
         val parser = Xml.newPullParser().apply {
             setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
             setInput(input, null)
@@ -142,8 +143,9 @@ class Fb2BookParser(
         }
         flushSection()
         Parsed(title.trim(), fullName(firstName, lastName), chapters, fallbackBody)
-    } catch (t: Throwable) {
-        throw BookParseException("Failed to parse FB2 file", t)
+        } catch (t: Throwable) {
+            throw BookParseException("Failed to parse FB2 file", t)
+        }
     }
 
     private fun fullName(first: String, last: String): String? =

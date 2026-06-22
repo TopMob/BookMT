@@ -7,7 +7,7 @@ import com.TopMob.bookmt.domain.model.VoiceProfile
 
 /**
  * Default multi-voice mapping used until the user customizes voices in settings. Paths point at
- * `assets/voices/*.onnx` Piper models; ship those models (or let the user import them) and the
+ * Piper `.onnx` models under `assets/voices/`; ship those models (or let the user import them) and the
  * [OnnxTtsEngine] synthesis seam will load them. Until then the engine drives playback state with
  * these as logical voices.
  */
