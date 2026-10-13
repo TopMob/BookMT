@@ -1,5 +1,13 @@
 package com.TopMob.bookmt
 
+import android.content.Intent
+import android.net.Uri
+import androidx.lifecycle.lifecycleScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+import com.TopMob.bookmt.data.importing.DocumentImport
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -37,6 +45,9 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity(), VolumeKeyController {
 
+    @Inject lateinit var documentImport: DocumentImport
+    private var importedBookId by mutableStateOf<Long?>(null)
+
     override var onVolumeKey: ((VolumeKey) -> Boolean)? = null
 
     /** Localize the whole activity before any view is created, based on the persisted language. */
@@ -48,6 +59,7 @@ class MainActivity : ComponentActivity(), VolumeKeyController {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (savedInstanceState == null) importIntent(intent)
         setContent {
             BookMTTheme {
                 ApplyLanguageChanges()
@@ -55,9 +67,32 @@ class MainActivity : ComponentActivity(), VolumeKeyController {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    BookMTNavHost()
+                    BookMTNavHost(importedBookId = importedBookId, onImportHandled = { importedBookId = null })
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        importIntent(intent)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun importIntent(intent: Intent?) {
+        val uris = when (intent?.action) {
+            Intent.ACTION_VIEW -> listOfNotNull(intent.data)
+            Intent.ACTION_SEND -> listOfNotNull(intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))
+            Intent.ACTION_SEND_MULTIPLE -> intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM).orEmpty()
+            else -> emptyList()
+        }.filter { it.scheme == "content" || it.scheme == "file" }
+        if (uris.isEmpty()) return
+        lifecycleScope.launch {
+            val result = documentImport.import(uris)
+            if (result.bookIds.size == 1) importedBookId = result.bookIds.single()
+            if (result.failures.isNotEmpty()) android.widget.Toast.makeText(this@MainActivity,
+                result.failures.joinToString("\n"), android.widget.Toast.LENGTH_LONG).show()
         }
     }
 

@@ -45,7 +45,9 @@ object RepositoryModule {
         parserFactory: BookParserFactory,
         contentResolver: ContentResolver,
         dispatchers: DispatcherProvider,
-    ): BookRepository = BookRepositoryImpl(bookDao, parserFactory, contentResolver, dispatchers)
+        @ApplicationContext context: Context,
+    ): BookRepository = BookRepositoryImpl(bookDao, parserFactory, contentResolver, dispatchers,
+        storageDir = java.io.File(context.filesDir, "books"))
 
     @Provides
     @Singleton

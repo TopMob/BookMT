@@ -31,6 +31,7 @@ class BookRepositoryImpl(
     private val contentResolver: ContentResolver,
     private val dispatchers: DispatcherProvider,
     private val now: () -> Long = System::currentTimeMillis,
+    private val storageDir: java.io.File? = null,
 ) : BookRepository {
 
     override fun observeBooks(): Flow<List<Book>> =
@@ -56,20 +57,33 @@ class BookRepositoryImpl(
                     IllegalArgumentException("Unsupported format for $fileName"),
                 )
 
-            val metadata = openStream(uri).use { parser.parseMetadata(it, fileName) }
+            val storedUri = storageDir?.let { directory ->
+                com.TopMob.bookmt.data.importing.OwnedBookStorage.copy(contentResolver, Uri.parse(uri), directory,
+                    parser.format.name.lowercase()).toString()
+            } ?: uri
+            bookDao.getByUri(storedUri)?.let { return@withContext Resource.Success(it.toDomain()) }
+            val metadata = openStream(storedUri).use { parser.parseMetadata(it, fileName) }
+            val cover = metadata.coverImageBytes?.takeIf { it.isNotEmpty() }?.let { bytes ->
+                storageDir?.parentFile?.let { parent ->
+                    java.io.File(parent, "covers").apply { mkdirs() }.let { dir ->
+                        java.io.File(dir, java.util.UUID.randomUUID().toString() + ".jpg").apply { writeBytes(bytes) }.absolutePath
+                    }
+                }
+            }
 
             val entity = Book(
-                uri = uri,
+                uri = storedUri,
+                coverImagePath = cover,
                 title = metadata.title,
                 author = metadata.author,
                 format = parser.format.takeIf { it != BookFormat.UNKNOWN }
                     ?: BookFormat.fromFileName(fileName),
                 addedTimestamp = now(),
-                fileSizeBytes = fileSizeOf(uri),
+                fileSizeBytes = if (storedUri.startsWith("file:")) java.io.File(Uri.parse(storedUri).path!!).length() else fileSizeOf(uri),
             ).toEntity()
 
             val id = bookDao.insert(entity)
-            val saved = (bookDao.getById(id) ?: bookDao.getByUri(uri))?.toDomain()
+            val saved = (bookDao.getById(id) ?: bookDao.getByUri(storedUri))?.toDomain()
                 ?: return@withContext Resource.Error(IllegalStateException("Insert failed"))
             Resource.Success(saved)
         } catch (t: Throwable) {
@@ -123,7 +137,15 @@ class BookRepositoryImpl(
     }
 
     override suspend fun deleteBook(bookId: Long) {
-        withContext(dispatchers.io) { bookDao.deleteById(bookId) }
+        withContext(dispatchers.io) {
+            val book = bookDao.getById(bookId)
+            bookDao.deleteById(bookId)
+            val owned = storageDir?.canonicalFile
+            if (book != null && owned != null && Uri.parse(book.uri).scheme == "file") {
+                val file = Uri.parse(book.uri).path?.let { java.io.File(it).canonicalFile }
+                if (file?.parentFile == owned) file.delete()
+            }
+        }
     }
 
     private fun openStream(uri: String) =

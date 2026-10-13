@@ -1,5 +1,14 @@
 package com.TopMob.bookmt.presentation.reader
 
+import android.content.Intent
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.res.stringResource
+import com.TopMob.bookmt.R
+import com.TopMob.bookmt.domain.model.Bookmark
+import com.TopMob.bookmt.presentation.reader.components.ReaderSelection
+import com.TopMob.bookmt.presentation.reader.components.ReaderToolDialogs
+import com.TopMob.bookmt.presentation.reader.components.SelectionActionsDialog
+import com.TopMob.bookmt.presentation.reader.components.EditAnnotationDialog
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -52,8 +61,14 @@ fun ReaderScreen(
     viewModel: ReaderViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    if (state.book?.format == com.TopMob.bookmt.domain.model.BookFormat.PDF) {
+        PdfReaderScreen(onNavigateBack)
+        return
+    }
     val colors = ReaderColors.forTheme(state.settings.theme)
 
+    ReaderWindowPreferences(state.settings.fullScreen && !state.showControls && state.overlay == ReaderOverlay.NONE,
+        state.settings.orientation)
     KeepScreenOn(enabled = state.settings.keepScreenOn)
     BrightnessOverride(
         enabled = state.settings.brightnessOverrideEnabled,
@@ -65,7 +80,22 @@ fun ReaderScreen(
     )
 
     var turnPage by remember { mutableStateOf<((Int) -> Unit)?>(null) }
+    var goToPage by remember { mutableStateOf<((Int) -> Unit)?>(null) }
+    var selection by remember { mutableStateOf<ReaderSelection?>(null) }
+    var editing by remember { mutableStateOf<Bookmark?>(null) }
+    val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(state.autoPaging, state.showControls, state.overlay, selection, editing, state.currentPage, state.settings.autoPageSeconds) {
+        if (state.autoPaging && !state.showControls && state.overlay == ReaderOverlay.NONE && selection == null && editing == null) {
+            if (state.currentPage >= state.totalPages) viewModel.stopAutoPaging()
+            else {
+                while (true) {
+                    kotlinx.coroutines.delay(state.settings.autoPageSeconds * 1000L)
+                    turnPage?.invoke(1)
+                }
+            }
+        }
+    }
     BackHandler(state.overlay != ReaderOverlay.NONE) { viewModel.onDismissOverlay() }
     LaunchedEffect(state.errorMessage) {
         state.errorMessage?.takeIf { state.content != null }?.let {
@@ -74,7 +104,7 @@ fun ReaderScreen(
         }
     }
 
-    VolumeKeyScroll { key ->
+    VolumeKeyScroll(enabled = state.settings.volumeKeysEnabled && state.overlay == ReaderOverlay.NONE && selection == null && editing == null) { key ->
         turnPage?.invoke(if (key == VolumeKey.UP) -1 else 1)
     }
 
@@ -86,6 +116,9 @@ fun ReaderScreen(
             state = state,
             colors = colors,
             onRegisterTurn = { turnPage = it },
+            onRegisterGoToPage = { goToPage = it },
+            onSelection = { selection = it },
+            onJump = viewModel::jumpToOffset,
             onPageChanged = viewModel::onPageChanged,
             modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars),
             onScrollOffsetChanged = viewModel::onScrollOffsetChanged,
@@ -108,6 +141,22 @@ fun ReaderScreen(
             onBack = onNavigateBack,
             onOpenToc = { viewModel.onShowOverlay(ReaderOverlay.TABLE_OF_CONTENTS) },
             onOpenNotes = { viewModel.onShowOverlay(ReaderOverlay.NOTES) },
+            onSearch = { viewModel.onShowOverlay(ReaderOverlay.SEARCH) },
+            onSettings = { viewModel.onShowOverlay(ReaderOverlay.SETTINGS) },
+            onGoTo = { viewModel.onShowOverlay(ReaderOverlay.GO_TO) },
+            onReturn = if (state.canReturn) viewModel::returnToPreviousPosition else null,
+            onAutoPage = viewModel::toggleAutoPaging,
+            onShareNotes = {
+                val text = buildString {
+                    appendLine(state.book?.title.orEmpty())
+                    state.bookmarks.sortedBy { it.position }.forEach {
+                        appendLine(); appendLine(it.chapterTitle.orEmpty()); appendLine(it.textSnippet)
+                        it.note?.let { note -> appendLine(note) }
+                    }
+                }
+                context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain")
+                    .putExtra(Intent.EXTRA_TEXT, text), null))
+            },
             onToggleTheme = {
                 val nextTheme = when (state.settings.theme) {
                     com.TopMob.bookmt.domain.model.ReaderTheme.DAY -> com.TopMob.bookmt.domain.model.ReaderTheme.NIGHT
@@ -141,7 +190,14 @@ fun ReaderScreen(
                 onStopTts = viewModel::onStopTts,
             )
         }
+        if (state.autoPaging) TextButton(onClick = viewModel::stopAutoPaging,
+            modifier = Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.systemBars)) {
+            Text(stringResource(R.string.reader_stop_auto))
+        }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+        ReaderToolDialogs(state, viewModel) { goToPage?.invoke(it) }
+        selection?.let { SelectionActionsDialog(it, { selection = null }, viewModel::onHighlight, viewModel::onAddNote) }
+        editing?.let { EditAnnotationDialog(it, viewModel::onUpdateBookmark) { editing = null } }
 
         // Notes & Bookmarks side drawer
         ReaderSideDrawer(
@@ -155,6 +211,7 @@ fun ReaderScreen(
                     viewModel.onDismissOverlay()
                 },
                 onDelete = viewModel::onDeleteBookmark,
+                onEdit = { editing = it },
             )
         }
 
@@ -199,6 +256,9 @@ private fun ReaderSurface(
     state: ReaderUiState,
     colors: ReaderColors,
     onRegisterTurn: (((Int) -> Unit)?) -> Unit,
+    onRegisterGoToPage: (((Int) -> Unit)?) -> Unit,
+    onSelection: (ReaderSelection) -> Unit,
+    onJump: (Int) -> Unit,
     onPageChanged: (Int, Int) -> Unit,
     onScrollOffsetChanged: (Int) -> Unit,
     onToggleControls: () -> Unit,
@@ -229,6 +289,11 @@ private fun ReaderSurface(
             currentOffset = state.currentOffset,
             navigationVersion = state.navigationVersion,
             onRegisterTurn = onRegisterTurn,
+            onRegisterGoToPage = onRegisterGoToPage,
+            onSelection = onSelection,
+            onJump = onJump,
+            bookmarks = state.bookmarks,
+            searchResults = state.searchResults,
             onPageChanged = onPageChanged,
             onOffsetChanged = onScrollOffsetChanged,
             onToggleControls = onToggleControls,
@@ -258,16 +323,14 @@ private fun BrightnessEdgeStrip(level: Float, onLevelChange: (Float) -> Unit) {
 
 @Composable
 private fun VolumeKeyScroll(
+    enabled: Boolean,
     onVolumeKey: (VolumeKey) -> Unit,
 ) {
     val activity = LocalContext.current.findActivity()
     val latestOnVolumeKey by rememberUpdatedState(onVolumeKey)
-    DisposableEffect(activity) {
+    DisposableEffect(activity, enabled) {
         val controller = activity as? VolumeKeyController
-        controller?.onVolumeKey = { key ->
-            latestOnVolumeKey(key)
-            true
-        }
+        controller?.onVolumeKey = if (enabled) { key -> latestOnVolumeKey(key); true } else null
         onDispose { controller?.onVolumeKey = null }
     }
 }

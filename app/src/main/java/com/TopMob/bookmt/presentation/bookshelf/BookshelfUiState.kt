@@ -11,6 +11,7 @@ enum class BookshelfViewMode { GRID, LIST }
 @Immutable
 data class BookshelfUiState(
     val books: List<Book> = emptyList(),
+    val allBooks: List<Book> = emptyList(),
     val continueReadingBook: Book? = null,
     val query: BookQuery = BookQuery(),
     val viewMode: BookshelfViewMode = BookshelfViewMode.GRID,

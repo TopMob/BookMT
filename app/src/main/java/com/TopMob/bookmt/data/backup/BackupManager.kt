@@ -30,15 +30,42 @@ class BackupManager @Inject constructor(
     /** Writes a backup ZIP to [target]. */
     suspend fun export(target: Uri): Result<Unit> = withContext(dispatchers.io) {
         runCatching {
-            // Fold the WAL back into the main db file so the copy is self-contained.
-            checkpoint()
-            val output = context.contentResolver.openOutputStream(target)
-                ?: error("Cannot open output stream")
-            ZipOutputStream(output.buffered()).use { zip ->
-                dbFile()?.let { zip.putFile(DB_ENTRY, it) }
-                dataStoreFiles().forEach { (entryName, file) -> zip.putFile(entryName, file) }
-            }
-        }
+            val snapshotFile = File.createTempFile("library-backup-", ".db", context.cacheDir)
+            try {
+                database.snapshot(snapshotFile)
+                val output = context.contentResolver.openOutputStream(target)
+                    ?: error("Cannot open output stream")
+                ZipOutputStream(output.buffered()).use { zip ->
+                    SQLiteDatabase.openDatabase(snapshotFile.path, null, SQLiteDatabase.OPEN_READWRITE).use { snapshot ->
+                        snapshot.rawQuery("SELECT id, uri, format, cover_image_path FROM books", null).use { cursor ->
+                            while (cursor.moveToNext()) {
+                                val id = cursor.getLong(0)
+                                val entry = "books/$id.${cursor.getString(2).lowercase().filter { it in 'a'..'z' }}"
+                                val uri = Uri.parse(cursor.getString(1))
+                                zip.putNextEntry(ZipEntry(entry))
+                                context.contentResolver.openInputStream(uri)?.use { it.copyTo(zip) }
+                                    ?: error("Cannot back up book #$id: source is unavailable")
+                                zip.closeEntry()
+                                snapshot.execSQL("UPDATE books SET uri=? WHERE id=?", arrayOf("bookmt-backup://$entry", id))
+                                if (!cursor.isNull(3)) {
+                                    val cover = File(cursor.getString(3))
+                                    if (cover.isFile) {
+                                        val coverEntry = "covers/$id.img"
+                                        zip.putFile(coverEntry, cover)
+                                        snapshot.execSQL("UPDATE books SET cover_image_path=? WHERE id=?", arrayOf("bookmt-backup://$coverEntry", id))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    zip.putFile(DB_ENTRY, snapshotFile)
+                    dataStoreFiles().forEach { (entryName, file) -> zip.putFile(entryName, file) }
+                    File(context.filesDir, "fonts").listFiles()?.filter { it.isFile && assetEntry("fonts/${it.name}") }
+                        ?.forEach { zip.putFile("fonts/${it.name}", it) }
+                }
+            } finally { snapshotFile.delete() }
+            Unit
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     /** Restores from a backup ZIP at [source]. Caller must restart the app afterwards. */
@@ -55,9 +82,10 @@ class BackupManager @Inject constructor(
             ZipInputStream(input.buffered()).use { zip ->
                 while (true) {
                     val entry = zip.nextEntry ?: break
-                    check(entry.name in allowedEntries && !entry.isDirectory) { "Unknown backup entry: ${entry.name}" }
-                    if (entry.name in allowedEntries && !entry.isDirectory) {
+                    check((entry.name in allowedEntries || assetEntry(entry.name)) && !entry.isDirectory) { "Unknown backup entry: ${entry.name}" }
+                    if ((entry.name in allowedEntries || assetEntry(entry.name)) && !entry.isDirectory) {
                         check(seen.add(entry.name)) { "Duplicate backup entry: ${entry.name}" }
+                        check(seen.size <= 100000) { "Too many backup entries" }
                         val targetFile = File(staging, entry.name)
                         targetFile.parentFile?.mkdirs()
                         targetFile.outputStream().use { out ->
@@ -92,20 +120,31 @@ class BackupManager @Inject constructor(
                     db.rawQuery("SELECT id FROM bookmarks LIMIT 1", null).close()
                 }
             }
+            if (stagedDb.exists()) {
+                SQLiteDatabase.openDatabase(stagedDb.path, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
+                    db.rawQuery("SELECT id, uri, cover_image_path FROM books", null).use { cursor ->
+                        while (cursor.moveToNext()) {
+                            val id = cursor.getLong(0)
+                            for ((column, index) in listOf("uri" to 1, "cover_image_path" to 2)) {
+                                val value = if (cursor.isNull(index)) null else cursor.getString(index)
+                                if (value?.startsWith("bookmt-backup://") == true) {
+                                    val relative = value.removePrefix("bookmt-backup://")
+                                    check(assetEntry(relative) && File(staging, relative).isFile) { "Missing book asset: $relative" }
+                                    val destination = File(context.filesDir, relative)
+                                    val replacement = if (column == "uri") Uri.fromFile(destination).toString() else destination.absolutePath
+                                    db.execSQL("UPDATE books SET $column=? WHERE id=?", arrayOf(replacement, id))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             // Never replace files that Room or DataStore have open. Apply before their next startup.
             val pending = File(context.filesDir, PENDING_DIR)
             check(!pending.exists()) { "A restore is already pending; restart the app first" }
             check(staging.renameTo(pending)) { "Cannot stage backup for restart" }
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
-
-    private fun checkpoint() {
-        database.openHelper.writableDatabase
-            .query("PRAGMA wal_checkpoint(TRUNCATE)")
-            .use { check(it.moveToFirst() && it.getInt(0) == 0) { "Database is busy; try backing up again" } }
-    }
-
-    private fun dbFile(): File? = context.getDatabasePath(Constants.DATABASE_NAME).takeIf { it.exists() }
 
     private fun dataStoreFiles(): List<Pair<String, File>> {
         val dir = File(context.filesDir, "datastore")
@@ -126,18 +165,26 @@ class BackupManager @Inject constructor(
         const val DB_ENTRY = "database/bookmt.db"
         const val DATASTORE_DIR = "datastore"
         private const val PENDING_DIR = "pending-restore"
-        private const val MAX_BACKUP_BYTES = 256L * 1024 * 1024
+        private const val MAX_BACKUP_BYTES = 4L * 1024 * 1024 * 1024
         private val allowedEntries = setOf(
             DB_ENTRY,
             "$DATASTORE_DIR/${Constants.SETTINGS_DATASTORE_NAME}.preferences_pb",
             "$DATASTORE_DIR/${Constants.APP_SETTINGS_DATASTORE_NAME}.preferences_pb",
         )
 
+        private fun assetEntry(name: String): Boolean =
+            Regex("books/[0-9]+\\.[a-z]+").matches(name) ||
+                Regex("covers/[0-9]+\\.img").matches(name) ||
+                Regex("fonts/[a-zA-Z0-9-]+\\.(ttf|otf)").matches(name)
+
         /** Runs before DI, Room and DataStore start. Staged sources remain until all writes succeed. */
         fun applyPendingRestore(context: Context) {
             val pending = File(context.filesDir, PENDING_DIR)
             if (!pending.isDirectory) return
-            for (entry in allowedEntries) {
+            val assets = pending.walkTopDown().filter { it.isFile }
+                .map { it.relativeTo(pending).invariantSeparatorsPath }.filter(::assetEntry).toList()
+            // Install referenced assets before replacing the database that points to them.
+            for (entry in assets + allowedEntries) {
                 val source = File(pending, entry)
                 if (!source.isFile) continue
                 val target = if (entry == DB_ENTRY) context.getDatabasePath(Constants.DATABASE_NAME)

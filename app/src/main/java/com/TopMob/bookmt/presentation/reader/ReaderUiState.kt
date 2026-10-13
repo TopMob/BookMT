@@ -8,7 +8,7 @@ import com.TopMob.bookmt.domain.model.ReaderSettings
 import com.TopMob.bookmt.domain.tts.TtsPlaybackState
 
 /** Which transient overlay (if any) is currently shown over the reading surface. */
-enum class ReaderOverlay { NONE, SETTINGS, NOTES, TABLE_OF_CONTENTS }
+enum class ReaderOverlay { NONE, SETTINGS, NOTES, TABLE_OF_CONTENTS, SEARCH, GO_TO }
 
 @Immutable
 data class ReaderUiState(
@@ -19,12 +19,19 @@ data class ReaderUiState(
     val navigationVersion: Long = 0,
     val currentPage: Int = 1,
     val totalPages: Int = 1,
+    val paginationReady: Boolean = false,
     val settings: ReaderSettings = ReaderSettings(),
     val bookmarks: List<Bookmark> = emptyList(),
     val showControls: Boolean = false,
     val overlay: ReaderOverlay = ReaderOverlay.NONE,
     val tts: TtsPlaybackState = TtsPlaybackState(),
     val errorMessage: String? = null,
+    val searchQuery: String = "",
+    val searchResults: List<BookSearchResult> = emptyList(),
+    val searchBusy: Boolean = false,
+    val searchLimited: Boolean = false,
+    val canReturn: Boolean = false,
+    val autoPaging: Boolean = false,
 ) {
     val totalLength: Int get() = content?.totalLength ?: 0
 

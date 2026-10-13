@@ -118,25 +118,11 @@ fun BookshelfScreen(
         viewModel.onSearchChange("")
     }
 
-    // System file picker. OpenDocument grants a persistable URI so the book reopens across launches.
-    val importLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        if (uri != null) {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                )
-            }
-            val resolver = context.contentResolver
-            val displayName = resolver.query(uri, null, null, null, null)?.use { cursor ->
-                val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                if (idx >= 0 && cursor.moveToFirst()) cursor.getString(idx) else null
-            } ?: uri.lastPathSegment.orEmpty()
-            viewModel.onImportBook(uri.toString(), displayName, resolver.getType(uri))
-        }
+    val importProgress by viewModel.importProgress.collectAsStateWithLifecycle()
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        viewModel.onImportDocuments(uris)
     }
+    var showLibraryTools by remember { mutableStateOf(false) }
 
     state.errorMessage?.let { message ->
         LaunchedEffect(message) {
@@ -182,6 +168,8 @@ fun BookshelfScreen(
                         onOpenBookmarks()
                     }
                 )
+                NavigationDrawerItem(label = { Text(stringResource(R.string.library_tools)) }, selected = false,
+                    onClick = { showLibraryTools = true; scope.launch { drawerState.close() } })
                 HorizontalDivider()
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
@@ -237,6 +225,9 @@ fun BookshelfScreen(
                                 contentDescription = stringResource(R.string.action_search),
                             )
                         }
+                        IconButton(onClick = { showLibraryTools = true }) {
+                            Icon(Icons.Filled.MoreVert, stringResource(R.string.library_tools))
+                        }
                         SortMenu(onSortSelected = viewModel::onSortOrderChange)
                         IconButton(onClick = viewModel::onToggleViewMode) {
                             if (state.viewMode == BookshelfViewMode.GRID) {
@@ -263,7 +254,9 @@ fun BookshelfScreen(
             }
         },
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        androidx.compose.foundation.layout.Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            LibraryFilterSummary(state, importProgress, viewModel::onResetFilters)
+            Box(Modifier.weight(1f)) {
             when {
                 state.isLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 state.isEmpty -> Text(
@@ -275,7 +268,7 @@ fun BookshelfScreen(
 
                 state.viewMode == BookshelfViewMode.GRID -> LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 120.dp),
-                    contentPadding = PaddingValues(8.dp),
+                    contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 180.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(items = state.books, key = { it.id }) { book ->
@@ -293,7 +286,7 @@ fun BookshelfScreen(
                 }
 
                 else -> LazyColumn(
-                    contentPadding = PaddingValues(12.dp),
+                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 180.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(items = state.books, key = { it.id }) { book ->
@@ -326,10 +319,14 @@ fun BookshelfScreen(
     }
     }
 
+    }
+    if (showLibraryTools) LibraryToolsDialog(state, viewModel) { showLibraryTools = false }
+
     // Long-press context menu (single book).
     contextMenuBook?.let { book ->
         BookContextSheet(
             book = book,
+            onFavorite = { viewModel.onToggleFavorite(book); contextMenuBook = null },
             onOpenDetails = {
                 contextMenuBook = null
                 onOpenDetails(book.id)

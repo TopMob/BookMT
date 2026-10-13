@@ -20,7 +20,15 @@ import com.TopMob.bookmt.presentation.settings.AppSettingsScreen
 @Composable
 fun BookMTNavHost(
     navController: NavHostController = rememberNavController(),
+    importedBookId: Long? = null,
+    onImportHandled: () -> Unit = {},
 ) {
+    androidx.compose.runtime.LaunchedEffect(importedBookId) {
+        importedBookId?.let {
+            navController.navigate(Screen.Reader.createRoute(it)) { launchSingleTop = true }
+            onImportHandled()
+        }
+    }
     NavHost(
         navController = navController,
         startDestination = Screen.Bookshelf.route,

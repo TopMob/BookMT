@@ -49,6 +49,11 @@ fun ReaderContent(
     onRegisterTurn: (((Int) -> Unit)?) -> Unit,
     onToggleControls: () -> Unit,
     modifier: Modifier = Modifier,
+    bookmarks: List<com.TopMob.bookmt.domain.model.Bookmark> = emptyList(),
+    searchResults: List<com.TopMob.bookmt.presentation.reader.BookSearchResult> = emptyList(),
+    onSelection: (ReaderSelection) -> Unit = {},
+    onRegisterGoToPage: (((Int) -> Unit)?) -> Unit = {},
+    onJump: (Int) -> Unit = onOffsetChanged,
 ) {
     val density = LocalDensity.current
     val measurer = rememberTextMeasurer(cacheSize = 16)
@@ -124,27 +129,26 @@ fun ReaderContent(
             }
             DisposableEffect(pages, mode) {
                 onRegisterTurn(turn)
-                onDispose { onRegisterTurn(null) }
+                onRegisterGoToPage { index -> onJump(pages[index.coerceIn(0, pages.lastIndex)].startOffset) }
+                onDispose { onRegisterTurn(null); onRegisterGoToPage(null) }
             }
-            val tapModifier = Modifier.pointerInput(mode, pages) {
-                detectTapGestures { position ->
-                    when (ReaderTapZone.fromX(position.x, size.width.toFloat())) {
-                        ReaderTapZone.LEFT -> turn(-1)
-                        ReaderTapZone.RIGHT -> turn(1)
-                        ReaderTapZone.CENTER -> onToggleControls()
-                    }
+            val onTap: (Float, Float) -> Unit = { x, widthPx ->
+                when (ReaderTapZone.fromX(x, widthPx)) {
+                    ReaderTapZone.LEFT -> turn(-1)
+                    ReaderTapZone.RIGHT -> turn(1)
+                    ReaderTapZone.CENTER -> onToggleControls()
                 }
             }
             if (mode == ReadingMode.PAGED) {
-                HorizontalPager(pager, modifier = Modifier.fillMaxSize().then(tapModifier)) { index ->
-                    Text(pages[index].text, style = textStyle, modifier = Modifier.fillMaxSize()
-                        .padding(horizontal = horizontalPadding.dp, vertical = verticalPadding.dp))
+                HorizontalPager(pager, modifier = Modifier.fillMaxSize()) { index ->
+                    ReaderPageText(pages[index], textStyle, bookmarks, searchResults, onSelection, onTap,
+                        Modifier.fillMaxSize().padding(horizontal = horizontalPadding.dp, vertical = verticalPadding.dp))
                 }
             } else {
-                LazyColumn(state = list, modifier = Modifier.fillMaxSize().then(tapModifier),
+                LazyColumn(state = list, modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = horizontalPadding.dp, vertical = verticalPadding.dp)) {
                     items(pages.size, key = { pages[it].startOffset }) { index ->
-                        Text(pages[index].text, style = textStyle)
+                        ReaderPageText(pages[index], textStyle, bookmarks, searchResults, onSelection, onTap, Modifier.fillMaxSize())
                     }
                 }
             }

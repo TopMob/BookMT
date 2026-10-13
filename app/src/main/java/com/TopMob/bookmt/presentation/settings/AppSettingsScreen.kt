@@ -70,6 +70,7 @@ fun AppSettingsScreen(
     viewModel: AppSettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val backupBusy by viewModel.backupBusy.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -139,68 +140,7 @@ fun AppSettingsScreen(
             val rs = state.readerSettings
             val onUpdate = viewModel::onUpdateReaderSettings
 
-            SectionLabel(stringResource(R.string.settings_reading_mode))
-            ChipRow(
-                options = ReadingMode.entries,
-                selected = rs.readingMode,
-                label = { stringResource(if (it == ReadingMode.PAGED) R.string.settings_mode_paged else R.string.settings_mode_scroll) },
-                onSelect = { mode -> onUpdate { it.copy(readingMode = mode) } },
-            )
-
-            SectionLabel(stringResource(R.string.settings_theme))
-            ChipRow(
-                options = ReaderTheme.entries.filter { it != ReaderTheme.CUSTOM },
-                selected = rs.theme,
-                label = { it.label() },
-                onSelect = { theme -> onUpdate { it.copy(theme = theme) } },
-            )
-
-            SectionLabel(stringResource(R.string.settings_font_size, rs.fontSizeSp.toInt()))
-            Slider(
-                value = rs.fontSizeSp,
-                onValueChange = { v -> onUpdate { it.copy(fontSizeSp = v) } },
-                valueRange = ReaderSettings.MIN_FONT_SIZE_SP..ReaderSettings.MAX_FONT_SIZE_SP,
-                modifier = Modifier.padding(horizontal = 20.dp)
-            )
-
-            SectionLabel(stringResource(R.string.settings_line_spacing, "%.1f".format(rs.lineSpacingMultiplier)))
-            Slider(
-                value = rs.lineSpacingMultiplier,
-                onValueChange = { v -> onUpdate { it.copy(lineSpacingMultiplier = v) } },
-                valueRange = ReaderSettings.MIN_LINE_SPACING..ReaderSettings.MAX_LINE_SPACING,
-                modifier = Modifier.padding(horizontal = 20.dp)
-            )
-
-            SectionLabel(stringResource(R.string.settings_margins, rs.horizontalMarginDp))
-            Slider(
-                value = rs.horizontalMarginDp.toFloat(),
-                onValueChange = { v -> onUpdate { it.copy(horizontalMarginDp = v.toInt()) } },
-                valueRange = 0f..64f,
-                modifier = Modifier.padding(horizontal = 20.dp)
-            )
-
-            SectionLabel(stringResource(R.string.settings_font))
-            ChipRow(
-                options = ReaderFontFamily.entries,
-                selected = rs.fontFamily,
-                label = { it.label() },
-                onSelect = { family -> onUpdate { it.copy(fontFamily = family) } },
-            )
-
-            SectionLabel(stringResource(R.string.settings_alignment))
-            ChipRow(
-                options = ReaderTextAlignment.entries,
-                selected = rs.textAlignment,
-                label = { it.label() },
-                onSelect = { align -> onUpdate { it.copy(textAlignment = align) } },
-            )
-
-            SectionLabel(stringResource(R.string.reader_show_slider))
-            ToggleRow(
-                label = stringResource(R.string.reader_show_slider_desc),
-                checked = rs.showProgressSlider,
-                onCheckedChange = { on -> onUpdate { it.copy(showProgressSlider = on) } },
-            )
+            ReadingPreferences(rs, onUpdate)
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
@@ -220,14 +160,14 @@ fun AppSettingsScreen(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                OutlinedButton(onClick = { exportLauncher.launch(DEFAULT_BACKUP_NAME) }) {
+                OutlinedButton(enabled = !backupBusy, onClick = { exportLauncher.launch(DEFAULT_BACKUP_NAME) }) {
                     Text(stringResource(R.string.backup_export))
                 }
-                OutlinedButton(onClick = { importLauncher.launch(BACKUP_MIME_TYPES) }) {
+                OutlinedButton(enabled = !backupBusy, onClick = { importLauncher.launch(BACKUP_MIME_TYPES) }) {
                     Text(stringResource(R.string.backup_import))
                 }
             }
-            Spacer(Modifier.width(0.dp))
+            if (backupBusy) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().padding(20.dp))
         }
     }
 }
@@ -336,4 +276,72 @@ private fun ReaderTextAlignment.label(): String = when (this) {
     ReaderTextAlignment.START -> stringResource(R.string.settings_alignment_start)
     ReaderTextAlignment.CENTER -> stringResource(R.string.settings_alignment_center)
     ReaderTextAlignment.JUSTIFY -> stringResource(R.string.settings_alignment_justify)
+}
+
+@Composable
+fun ReadingPreferences(rs: ReaderSettings, onUpdate: ((ReaderSettings) -> ReaderSettings) -> Unit) {
+            SectionLabel(stringResource(R.string.settings_reading_mode))
+            ChipRow(
+                options = ReadingMode.entries,
+                selected = rs.readingMode,
+                label = { stringResource(if (it == ReadingMode.PAGED) R.string.settings_mode_paged else R.string.settings_mode_scroll) },
+                onSelect = { mode -> onUpdate { it.copy(readingMode = mode) } },
+            )
+
+            SectionLabel(stringResource(R.string.settings_theme))
+            ChipRow(
+                options = ReaderTheme.entries.filter { it != ReaderTheme.CUSTOM },
+                selected = rs.theme,
+                label = { it.label() },
+                onSelect = { theme -> onUpdate { it.copy(theme = theme) } },
+            )
+
+            SectionLabel(stringResource(R.string.settings_font_size, rs.fontSizeSp.toInt()))
+            Slider(
+                value = rs.fontSizeSp,
+                onValueChange = { v -> onUpdate { it.copy(fontSizeSp = v) } },
+                valueRange = ReaderSettings.MIN_FONT_SIZE_SP..ReaderSettings.MAX_FONT_SIZE_SP,
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
+
+            SectionLabel(stringResource(R.string.settings_line_spacing, "%.1f".format(rs.lineSpacingMultiplier)))
+            Slider(
+                value = rs.lineSpacingMultiplier,
+                onValueChange = { v -> onUpdate { it.copy(lineSpacingMultiplier = v) } },
+                valueRange = ReaderSettings.MIN_LINE_SPACING..ReaderSettings.MAX_LINE_SPACING,
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
+
+            SectionLabel(stringResource(R.string.settings_margins, rs.horizontalMarginDp))
+            Slider(
+                value = rs.horizontalMarginDp.toFloat(),
+                onValueChange = { v -> onUpdate { it.copy(horizontalMarginDp = v.toInt()) } },
+                valueRange = 0f..64f,
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
+
+            SectionLabel(stringResource(R.string.settings_font))
+            ChipRow(
+                options = ReaderFontFamily.entries,
+                selected = rs.fontFamily,
+                label = { it.label() },
+                onSelect = { family -> onUpdate { it.copy(fontFamily = family) } },
+            )
+
+            SectionLabel(stringResource(R.string.settings_alignment))
+            ChipRow(
+                options = ReaderTextAlignment.entries,
+                selected = rs.textAlignment,
+                label = { it.label() },
+                onSelect = { align -> onUpdate { it.copy(textAlignment = align) } },
+            )
+
+            SectionLabel(stringResource(R.string.reader_show_slider))
+            ToggleRow(
+                label = stringResource(R.string.reader_show_slider_desc),
+                checked = rs.showProgressSlider,
+                onCheckedChange = { on -> onUpdate { it.copy(showProgressSlider = on) } },
+            )
+
+    ExtraReadingPreferences(rs, onUpdate)
 }

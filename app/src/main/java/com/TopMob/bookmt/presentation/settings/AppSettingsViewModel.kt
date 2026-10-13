@@ -41,6 +41,9 @@ class AppSettingsViewModel @Inject constructor(
         initialValue = AppSettingsUiState(language = LocaleManager.applied ?: AppLanguage.SYSTEM),
     )
 
+    private val _backupBusy = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val backupBusy: StateFlow<Boolean> = _backupBusy
+
     private val _events = Channel<BackupEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
@@ -52,19 +55,15 @@ class AppSettingsViewModel @Inject constructor(
         viewModelScope.launch { readerSettingsRepository.update(transform) }
     }
 
-    fun onExportBackup(target: Uri) {
-        viewModelScope.launch {
-            val event = backupManager.export(target)
-                .fold({ BackupEvent.Exported }, { BackupEvent.Failed(it.message) })
-            _events.send(event)
-        }
-    }
+    fun onExportBackup(target: Uri) = performBackup { backupManager.export(target).fold({ BackupEvent.Exported }, { BackupEvent.Failed(it.message) }) }
+    fun onImportBackup(source: Uri) = performBackup { backupManager.import(source).fold({ BackupEvent.Imported }, { BackupEvent.Failed(it.message) }) }
 
-    fun onImportBackup(source: Uri) {
+    private fun performBackup(action: suspend () -> BackupEvent) {
+        if (_backupBusy.value) return
+        _backupBusy.value = true
         viewModelScope.launch {
-            val event = backupManager.import(source)
-                .fold({ BackupEvent.Imported }, { BackupEvent.Failed(it.message) })
-            _events.send(event)
+            try { _events.send(action()) }
+            finally { _backupBusy.value = false }
         }
     }
 

@@ -8,6 +8,7 @@ import com.TopMob.bookmt.domain.parser.BookMetadata
 import com.TopMob.bookmt.domain.parser.BookParseException
 import com.TopMob.bookmt.domain.parser.BookParser
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.ensureActive
 import org.xmlpull.v1.XmlPullParser
 import java.io.ByteArrayInputStream
 import java.io.InputStream
@@ -44,8 +45,10 @@ class EpubBookParser(
                     title = opf?.title?.takeIf { it.isNotBlank() }
                         ?: fileName.substringBeforeLast('.'),
                     author = opf?.author,
+                    coverImageBytes = opf?.coverHref?.let { entries[resolve(opfPath?.substringBeforeLast('/', "").orEmpty(), it)] },
                 )
-            } catch (t: Throwable) {
+            } catch (t: Exception) {
+                if (t is kotlinx.coroutines.CancellationException) throw t
                 // Import must never fail hard on metadata; fall back to the file name.
                 BookMetadata(title = fileName.substringBeforeLast('.'))
             }
@@ -85,19 +88,36 @@ class EpubBookParser(
                 )
             } catch (e: BookParseException) {
                 throw e
-            } catch (t: Throwable) {
+            } catch (t: Exception) {
+                if (t is kotlinx.coroutines.CancellationException) throw t
                 throw BookParseException("Failed to parse EPUB file", t)
             }
         }
 
     /* -------- ZIP -------- */
 
-    private fun readZip(input: InputStream): Map<String, ByteArray> {
+    private suspend fun readZip(input: InputStream): Map<String, ByteArray> {
         val entries = LinkedHashMap<String, ByteArray>()
+        var total = 0L
+        var count = 0
         ZipInputStream(input).use { zip ->
+            val buffer = ByteArray(8192)
             while (true) {
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
                 val entry = zip.nextEntry ?: break
-                if (!entry.isDirectory) entries[entry.name] = zip.readBytes()
+                require(++count <= 20000) { "EPUB has too many entries" }
+                if (!entry.isDirectory) {
+                    val bytes = java.io.ByteArrayOutputStream()
+                    while (true) {
+                        kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                        val read = zip.read(buffer)
+                        if (read < 0) break
+                        total += read
+                        require(total <= 64L * 1024 * 1024) { "Uncompressed EPUB exceeds 64 MB" }
+                        bytes.write(buffer, 0, read)
+                    }
+                    entries[entry.name] = bytes.toByteArray()
+                }
                 zip.closeEntry()
             }
         }
@@ -127,6 +147,8 @@ class EpubBookParser(
         val parser = newPullParser(bytes)
         var title = ""
         var author: String? = null
+        var coverId: String? = null
+        var coverHref: String? = null
         val manifest = HashMap<String, String>() // id -> href
         val spine = ArrayList<String>()           // ordered idrefs
         var captured: String? = null              // "title" | "creator"
@@ -141,7 +163,9 @@ class EpubBookParser(
                         val id = parser.attr("id")
                         val href = parser.attr("href")
                         if (id != null && href != null) manifest[id] = href
+                        if (parser.attr("properties")?.split(' ')?.contains("cover-image") == true) coverHref = href
                     }
+                    "meta" -> if (parser.attr("name") == "cover") coverId = parser.attr("content")
                     "itemref" -> parser.attr("idref")?.let { spine += it }
                 }
 
@@ -160,7 +184,7 @@ class EpubBookParser(
         }
 
         val spineHrefs = spine.mapNotNull { manifest[it] }
-        return Opf(title.trim(), author, spineHrefs)
+        return Opf(title.trim(), author, spineHrefs, coverHref ?: manifest[coverId])
     }
 
     /* -------- XHTML -> plain text -------- */
@@ -234,7 +258,7 @@ class EpubBookParser(
         return stack.joinToString("/")
     }
 
-    private data class Opf(val title: String, val author: String?, val spineHrefs: List<String>)
+    private data class Opf(val title: String, val author: String?, val spineHrefs: List<String>, val coverHref: String?)
 
     private companion object {
         val TITLE = Regex("(?is)<title[^>]*>(.*?)</title>")

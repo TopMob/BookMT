@@ -56,6 +56,8 @@ class ReaderViewModel @Inject constructor(
     private val initialOffset: Int = savedStateHandle[Screen.ARG_OFFSET] ?: -1
     val uiState: StateFlow<ReaderUiState> = _uiState.asStateFlow()
 
+    private var searchJob: Job? = null
+    private val navigationHistory = ArrayDeque<Int>()
     private var progressSaveJob: Job? = null
     private var ttsJob: Job? = null
 
@@ -95,13 +97,17 @@ class ReaderViewModel @Inject constructor(
                 current.copy(tts = ttsState)
             }
             if (ttsState.status == TtsStatus.PLAYING) {
-                ttsState.currentSegment?.let { jumpToOffset(it.startOffset) }
+                ttsState.currentSegment?.let { moveToOffset(it.startOffset) }
             }
         }
     }
 
     private fun loadContent() = viewModelScope.launch {
         val book = bookRepository.getBook(bookId)
+        if (book?.format == com.TopMob.bookmt.domain.model.BookFormat.PDF) {
+            _uiState.update { it.copy(book = book, isLoading = false) }
+            return@launch
+        }
         when (val result = openBook(bookId)) {
             is Resource.Success -> {
                 val content = result.data
@@ -137,7 +143,10 @@ class ReaderViewModel @Inject constructor(
         scheduleProgressSave(bounded)
     }
 
-    fun onPageChanged(page: Int, total: Int) = _uiState.update { it.copy(currentPage = page, totalPages = total) }
+    fun onPageChanged(page: Int, total: Int) {
+        _uiState.update { it.copy(currentPage = page, totalPages = total, paginationReady = true) }
+        if (page == total) scheduleProgressSave(_uiState.value.currentOffset)
+    }
 
     fun onPrevChapter() {
         val content = _uiState.value.content ?: return
@@ -164,8 +173,21 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun jumpToOffset(offset: Int) {
+        val old = _uiState.value.currentOffset
+        if (old != offset) {
+            if (navigationHistory.lastOrNull() != old) navigationHistory.addLast(old)
+            if (navigationHistory.size > 50) navigationHistory.removeFirst()
+        }
+        moveToOffset(offset)
+    }
+
+    fun returnToPreviousPosition() {
+        navigationHistory.removeLastOrNull()?.let(::moveToOffset)
+    }
+
+    private fun moveToOffset(offset: Int) {
         val bounded = offset.coerceIn(0, (_uiState.value.totalLength - 1).coerceAtLeast(0))
-        _uiState.update { it.copy(currentOffset = bounded, navigationVersion = it.navigationVersion + 1) }
+        _uiState.update { it.copy(currentOffset = bounded, navigationVersion = it.navigationVersion + 1, canReturn = navigationHistory.isNotEmpty()) }
         scheduleProgressSave(bounded)
     }
 
@@ -179,7 +201,10 @@ class ReaderViewModel @Inject constructor(
 
     private suspend fun persistProgress(offset: Int, length: Int) {
         try {
-            updateProgress(bookId, offset, length)
+            val state = _uiState.value
+            if (!state.isLoading && state.paginationReady && state.totalPages > 0 && state.currentPage == state.totalPages && state.content != null) {
+                bookRepository.updateProgress(bookId, 1f, offset)
+            } else updateProgress(bookId, offset, length)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -205,6 +230,7 @@ class ReaderViewModel @Inject constructor(
 
     /** Called when the reader leaves the foreground; persists the elapsed reading time. */
     fun onReadingPaused() {
+        _uiState.update { it.copy(autoPaging = false) }
         progressSaveJob?.cancel()
         val state = _uiState.value
         if (state.content != null) {
@@ -224,10 +250,32 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
+    fun onSearchChange(query: String) {
+        searchJob?.cancel()
+        _uiState.update { it.copy(searchQuery = query, searchBusy = query.isNotBlank(), searchResults = emptyList(), searchLimited = false) }
+        val content = _uiState.value.content ?: return
+        searchJob = viewModelScope.launch {
+            delay(250)
+            val results = kotlinx.coroutines.withContext(dispatchers.default) { BookTextSearch.find(content, query, 1001) }
+            _uiState.update { it.copy(searchResults = results.take(1000), searchBusy = false, searchLimited = results.size > 1000) }
+        }
+    }
+
+    fun toggleAutoPaging() = _uiState.update { it.copy(autoPaging = !it.autoPaging, showControls = false) }
+    fun stopAutoPaging() = _uiState.update { it.copy(autoPaging = false) }
+
+    fun onUpdateBookmark(bookmark: Bookmark) = annotationAction { manageBookmarks.update(bookmark) }
+
+    private fun annotationAction(action: suspend () -> Unit) = viewModelScope.launch {
+        try { action() }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) { _uiState.update { it.copy(errorMessage = e.message ?: "Unable to save annotation") } }
+    }
+
     /* -------- Settings -------- */
 
     fun onUpdateSettings(transform: (ReaderSettings) -> ReaderSettings) {
-        viewModelScope.launch { settingsRepository.update(transform) }
+        annotationAction { settingsRepository.update(transform) }
     }
 
     /* -------- Bookmarks / highlights / notes -------- */
@@ -260,7 +308,7 @@ class ReaderViewModel @Inject constructor(
         note: String? = null,
         colorArgb: Int? = null,
     ) {
-        viewModelScope.launch {
+        annotationAction {
             manageBookmarks.add(
                 Bookmark(
                     bookId = bookId,
@@ -277,7 +325,7 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun onDeleteBookmark(bookmarkId: Long) {
-        viewModelScope.launch { manageBookmarks.delete(bookmarkId) }
+        annotationAction { manageBookmarks.delete(bookmarkId) }
     }
 
     /* -------- TTS (multi-voice read-aloud) -------- */

@@ -22,6 +22,10 @@ data class ReaderSettings(
     val showProgressSlider: Boolean = true,
     /** Absolute path to a user-supplied TTF/OTF font; overrides [fontFamily] when set. */
     val customFontPath: String? = null,
+    val fullScreen: Boolean = false,
+    val volumeKeysEnabled: Boolean = true,
+    val orientation: ReaderOrientation = ReaderOrientation.SYSTEM,
+    val autoPageSeconds: Int = 30,
 ) {
     companion object {
         const val MIN_FONT_SIZE_SP = 10f
@@ -38,6 +42,7 @@ data class ReaderSettings(
             lineSpacingMultiplier = lineSpacingMultiplier.takeIf { it.isFinite() }?.coerceIn(MIN_LINE_SPACING, MAX_LINE_SPACING) ?: defaults.lineSpacingMultiplier,
             horizontalMarginDp = horizontalMarginDp.coerceIn(0, 64),
             verticalMarginDp = verticalMarginDp.coerceIn(0, 64),
+            autoPageSeconds = autoPageSeconds.coerceIn(5, 180),
             brightnessLevel = brightnessLevel.takeIf { it.isFinite() }?.coerceIn(0.01f, 1f) ?: defaults.brightnessLevel,
         )
     }
@@ -45,6 +50,8 @@ data class ReaderSettings(
 
 /** Built-in and custom reading themes. Concrete colors live in the presentation theme layer. */
 enum class ReaderTheme { DAY, SEPIA, NIGHT, AMOLED_BLACK, CUSTOM }
+
+enum class ReaderOrientation { SYSTEM, PORTRAIT, LANDSCAPE }
 
 enum class ReaderFontFamily { SERIF, SANS_SERIF, MONOSPACE, SYSTEM }
 

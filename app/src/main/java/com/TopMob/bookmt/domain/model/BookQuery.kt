@@ -1,5 +1,7 @@
 package com.TopMob.bookmt.domain.model
 
+enum class LibraryStatus { ALL, UNREAD, READING, FINISHED }
+
 /** Sort orders offered on the bookshelf. */
 enum class BookSortOrder {
     RECENTLY_ADDED,
@@ -23,4 +25,6 @@ data class BookQuery(
     val searchQuery: String = "",
     val tags: Set<String> = emptySet(),
     val onlyInProgress: Boolean = false,
+    val status: LibraryStatus = LibraryStatus.ALL,
+    val format: BookFormat? = null,
 )

@@ -84,7 +84,7 @@
     <string name="settings_mode_paged">Страницы</string>
     <string name="settings_mode_scroll">Свиток</string>
     <string name="settings_backup">Резервная копия</string>
-    <string name="settings_backup_desc">Экспортируйте библиотеку, статистику, закладки и настройки в один файл или восстановите из него.</string>
+    <string name="settings_backup_desc">Сохраните книги, обложки, статистику, заметки и настройки в ZIP-архив. Восстановление заменяет текущую библиотеку и перезапускает приложение. Для старых архивов может понадобиться доступ к исходным файлам книг.</string>
     <string name="backup_export">Экспорт</string>
     <string name="backup_import">Импорт</string>
     <string name="backup_exported">Резервная копия создана</string>

@@ -18,6 +18,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -57,6 +60,12 @@ fun ReaderTopBar(
     onOpenToc: () -> Unit,
     onOpenNotes: () -> Unit,
     onToggleTheme: () -> Unit,
+    onSearch: () -> Unit = {},
+    onSettings: () -> Unit = {},
+    onGoTo: () -> Unit = {},
+    onReturn: (() -> Unit)? = null,
+    onAutoPage: () -> Unit = {},
+    onShareNotes: () -> Unit = {},
 ) {
     AnimatedVisibility(
         visible = visible,
@@ -87,6 +96,21 @@ fun ReaderTopBar(
                         Icons.Filled.Bookmark,
                         contentDescription = stringResource(R.string.reader_notes_bookmarks),
                     )
+                }
+                var menu by remember { mutableStateOf(false) }
+                IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, stringResource(R.string.action_more)) }
+                DropdownMenu(menu, { menu = false }) {
+                    listOf(
+                        R.string.reader_search_book to onSearch,
+                        R.string.settings_title to onSettings,
+                        R.string.reader_go_to_page to onGoTo,
+                        R.string.reader_auto_page to onAutoPage,
+                        R.string.reader_share_notes to onShareNotes,
+                    ).forEach { (label, action) ->
+                        DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = { menu = false; action() })
+                    }
+                    if (onReturn != null) DropdownMenuItem(text = { Text(stringResource(R.string.reader_return)) },
+                        onClick = { menu = false; onReturn() })
                 }
                 IconButton(onClick = onToggleTheme) {
                     Icon(

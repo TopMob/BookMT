@@ -84,7 +84,7 @@
     <string name="settings_mode_paged">Paged</string>
     <string name="settings_mode_scroll">Scroll</string>
     <string name="settings_backup">Backup &amp; restore</string>
-    <string name="settings_backup_desc">Export your library, statistics, bookmarks and settings to a single file, or restore from one.</string>
+    <string name="settings_backup_desc">Export books, covers, statistics, annotations and settings to a ZIP archive. Restoring replaces the current library and restarts the app. Older archives may require access to the original book files.</string>
     <string name="backup_export">Export</string>
     <string name="backup_import">Import</string>
     <string name="backup_exported">Backup exported</string>

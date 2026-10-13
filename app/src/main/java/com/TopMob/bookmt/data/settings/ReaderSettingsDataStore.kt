@@ -12,6 +12,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.TopMob.bookmt.core.common.Constants
+import com.TopMob.bookmt.domain.model.ReaderOrientation
 import com.TopMob.bookmt.domain.model.ReaderFontFamily
 import com.TopMob.bookmt.domain.model.ReaderSettings
 import com.TopMob.bookmt.domain.model.ReaderTextAlignment
@@ -64,6 +65,10 @@ class ReaderSettingsDataStore(private val context: Context) {
             keepScreenOn = this[Keys.KEEP_SCREEN_ON] ?: defaults.keepScreenOn,
             showProgressSlider = this[Keys.SHOW_SLIDER] ?: defaults.showProgressSlider,
             customFontPath = this[Keys.CUSTOM_FONT_PATH] ?: defaults.customFontPath,
+            fullScreen = this[Keys.FULL_SCREEN] ?: defaults.fullScreen,
+            volumeKeysEnabled = this[Keys.VOLUME_KEYS] ?: defaults.volumeKeysEnabled,
+            orientation = decodeEnum(this[Keys.ORIENTATION], ReaderOrientation.entries, defaults.orientation),
+            autoPageSeconds = this[Keys.AUTO_PAGE_SECONDS] ?: defaults.autoPageSeconds,
         ).sanitized()
     }
 
@@ -80,6 +85,10 @@ class ReaderSettingsDataStore(private val context: Context) {
         this[Keys.BRIGHTNESS_LEVEL] = s.brightnessLevel
         this[Keys.KEEP_SCREEN_ON] = s.keepScreenOn
         this[Keys.SHOW_SLIDER] = s.showProgressSlider
+        this[Keys.FULL_SCREEN] = s.fullScreen
+        this[Keys.VOLUME_KEYS] = s.volumeKeysEnabled
+        this[Keys.ORIENTATION] = s.orientation.name
+        this[Keys.AUTO_PAGE_SECONDS] = s.autoPageSeconds
         val fontPath = s.customFontPath
         if (fontPath == null) this.remove(Keys.CUSTOM_FONT_PATH) else this[Keys.CUSTOM_FONT_PATH] = fontPath
     }
@@ -88,6 +97,10 @@ class ReaderSettingsDataStore(private val context: Context) {
         values.firstOrNull { it.name == name } ?: default
 
     private object Keys {
+        val FULL_SCREEN = booleanPreferencesKey("full_screen")
+        val VOLUME_KEYS = booleanPreferencesKey("volume_keys")
+        val ORIENTATION = stringPreferencesKey("orientation")
+        val AUTO_PAGE_SECONDS = intPreferencesKey("auto_page_seconds")
         val THEME = stringPreferencesKey("theme")
         val FONT_SIZE = floatPreferencesKey("font_size_sp")
         val FONT_FAMILY = stringPreferencesKey("font_family")

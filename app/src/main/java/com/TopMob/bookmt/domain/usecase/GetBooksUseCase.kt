@@ -30,7 +30,14 @@ class GetBooksUseCase @Inject constructor(
             val matchesProgress = !query.onlyInProgress ||
                 (book.progress > 0f && book.progress < 1f)
 
-            matchesSearch && matchesTags && matchesProgress
+            val matchesStatus = when (query.status) {
+                com.TopMob.bookmt.domain.model.LibraryStatus.ALL -> true
+                com.TopMob.bookmt.domain.model.LibraryStatus.UNREAD -> book.progress <= 0f
+                com.TopMob.bookmt.domain.model.LibraryStatus.READING -> book.progress > 0f && book.progress < 1f
+                com.TopMob.bookmt.domain.model.LibraryStatus.FINISHED -> book.isFinished
+            }
+            matchesSearch && matchesTags && matchesProgress && matchesStatus &&
+                (query.format == null || query.format == book.format)
         }
 
         val sorted = filtered.sortedWith(comparatorFor(query.sortOrder))

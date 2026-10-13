@@ -34,10 +34,12 @@ class BookshelfViewModel @Inject constructor(
     private val getBooks: GetBooksUseCase,
     private val importBook: ImportBookUseCase,
     private val bookRepository: BookRepository,
+    private val libraryPreferences: com.TopMob.bookmt.data.settings.LibraryPreferences,
+    private val documentImport: com.TopMob.bookmt.data.importing.DocumentImport,
 ) : ViewModel() {
 
-    private val query = MutableStateFlow(BookQuery())
-    private val viewMode = MutableStateFlow(BookshelfViewMode.GRID)
+    private val query = MutableStateFlow(libraryPreferences.query())
+    private val viewMode = MutableStateFlow(libraryPreferences.viewMode())
     private val transientError = MutableStateFlow<String?>(null)
 
     private val booksFlow = query
@@ -52,6 +54,7 @@ class BookshelfViewModel @Inject constructor(
     ) { books, q, mode, error, allBooks ->
         BookshelfUiState(
             books = books,
+            allBooks = allBooks,
             continueReadingBook = allBooks.filter { it.hasBeenOpened && it.progress < 1f }
                 .maxByOrNull { it.lastReadTimestamp },
             query = q,
@@ -65,6 +68,23 @@ class BookshelfViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
         initialValue = BookshelfUiState(),
     )
+
+    init {
+        viewModelScope.launch { query.collect { libraryPreferences.saveQuery(it) } }
+        viewModelScope.launch { viewMode.collect { libraryPreferences.saveViewMode(it) } }
+    }
+    val importProgress = documentImport.progress
+    fun onImportDocuments(uris: List<android.net.Uri>) = viewModelScope.launch {
+        val failures = documentImport.import(uris).failures
+        if (failures.isNotEmpty()) transientError.value = failures.joinToString("\n")
+    }
+    fun onStatusFilter(status: com.TopMob.bookmt.domain.model.LibraryStatus) = query.update { it.copy(status = status) }
+    fun onFormatFilter(format: com.TopMob.bookmt.domain.model.BookFormat?) = query.update { it.copy(format = format) }
+    fun onReverseSort() = query.update { it.copy(ascending = !it.ascending) }
+    fun onResetFilters() = query.update { it.copy(tags = emptySet(), status = com.TopMob.bookmt.domain.model.LibraryStatus.ALL, format = null, searchQuery = "", onlyInProgress = false) }
+    fun onToggleFavorite(book: Book) = libraryAction {
+        bookRepository.updateTags(book.id, if ("Favorites" in book.tags) book.tags - "Favorites" else book.tags + "Favorites")
+    }
 
     fun onSortOrderChange(order: BookSortOrder) = query.update { current ->
         // Title/author default to A→Z, time/progress to descending (newest / most-progressed first).

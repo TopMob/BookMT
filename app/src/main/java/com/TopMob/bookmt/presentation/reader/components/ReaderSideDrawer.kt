@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -86,6 +87,7 @@ fun NotesBookmarksPanel(
     bookmarks: List<Bookmark>,
     onEntryClick: (Bookmark) -> Unit,
     onDelete: (Long) -> Unit,
+    onEdit: (Bookmark) -> Unit = {},
 ) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text(
@@ -136,6 +138,9 @@ fun NotesBookmarksPanel(
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
+                    }
+                    IconButton(onClick = { onEdit(bookmark) }) {
+                        Icon(Icons.Filled.Edit, stringResource(R.string.reader_note))
                     }
                     IconButton(onClick = { onDelete(bookmark.id) }) {
                         Icon(

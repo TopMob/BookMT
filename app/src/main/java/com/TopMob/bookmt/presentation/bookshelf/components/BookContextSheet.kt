@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,6 +45,7 @@ fun BookContextSheet(
     onStartSelection: () -> Unit,
     onRequestDelete: () -> Unit,
     onDismiss: () -> Unit,
+    onFavorite: () -> Unit = {},
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val isRead = book.progress >= 1f
@@ -61,6 +63,9 @@ fun BookContextSheet(
                 text = stringResource(R.string.book_menu_info),
                 onClick = onOpenDetails,
             )
+            MenuRow(icon = Icons.Outlined.FavoriteBorder,
+                text = stringResource(if ("Favorites" in book.tags) R.string.library_unfavorite else R.string.library_favorite),
+                onClick = onFavorite)
             MenuRow(
                 icon = Icons.Outlined.CheckCircle,
                 text = stringResource(
