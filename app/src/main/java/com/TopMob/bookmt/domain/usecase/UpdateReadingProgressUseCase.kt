@@ -8,7 +8,8 @@ class UpdateReadingProgressUseCase @Inject constructor(
     private val repository: BookRepository,
 ) {
     suspend operator fun invoke(bookId: Long, position: Int, totalLength: Int) {
-        val progress = if (totalLength <= 0) 0f else (position.toFloat() / totalLength).coerceIn(0f, 1f)
-        repository.updateProgress(bookId, progress, position)
+        val bounded = position.coerceIn(0, totalLength.coerceAtLeast(0))
+        val progress = if (totalLength <= 0) 0f else bounded.toFloat() / totalLength
+        repository.updateProgress(bookId, progress, bounded)
     }
 }

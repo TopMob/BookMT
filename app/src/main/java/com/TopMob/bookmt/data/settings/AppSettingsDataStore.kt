@@ -52,7 +52,11 @@ class AppSettingsDataStore(private val context: Context) {
          * which runs before Hilt injection is available and must localize the context up front.
          */
         fun readLanguageBlocking(context: Context): AppLanguage = runBlocking {
-            decodeLanguage(context.appDataStore.data.first()[Keys.LANGUAGE])
+            try {
+                decodeLanguage(context.appDataStore.data.first()[Keys.LANGUAGE])
+            } catch (_: IOException) {
+                AppLanguage.SYSTEM
+            }
         }
     }
 }

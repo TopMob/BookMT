@@ -9,6 +9,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.TopMob.bookmt.presentation.bookshelf.BookDetailsScreen
 import com.TopMob.bookmt.presentation.bookshelf.BookshelfScreen
+import com.TopMob.bookmt.presentation.bookshelf.GlobalBookmarksScreen
 import com.TopMob.bookmt.presentation.reader.ReaderScreen
 import com.TopMob.bookmt.presentation.settings.AppSettingsScreen
 
@@ -35,12 +36,20 @@ fun BookMTNavHost(
                 onOpenDetails = { bookId ->
                     navController.navigate(Screen.BookDetails.createRoute(bookId))
                 },
+                onOpenBookmarks = { navController.navigate(Screen.Bookmarks.route) },
             )
         }
 
         composable(Screen.Settings.route) {
             AppSettingsScreen(
                 onNavigateBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(Screen.Bookmarks.route) {
+            GlobalBookmarksScreen(
+                onBack = { navController.popBackStack() },
+                onOpen = { bookmark -> navController.navigate(Screen.Reader.createRoute(bookmark.bookId, bookmark.position)) },
             )
         }
 
@@ -59,6 +68,7 @@ fun BookMTNavHost(
             route = Screen.Reader.route,
             arguments = listOf(
                 navArgument(Screen.ARG_BOOK_ID) { type = NavType.LongType },
+                navArgument(Screen.ARG_OFFSET) { type = NavType.IntType; defaultValue = -1 },
             ),
         ) {
             ReaderScreen(

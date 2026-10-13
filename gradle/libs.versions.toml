@@ -28,9 +28,6 @@ coroutines = "1.9.0"
 # Image loading
 coil = "2.7.0"
 
-# AI / TTS - ONNX Runtime (sherpa-onnx style voice models, e.g. Piper)
-onnxruntime = "1.19.2"
-
 # Testing
 junit = "4.13.2"
 junitVersion = "1.1.5"
@@ -82,9 +79,6 @@ kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 
 # Coil
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
-
-# ONNX Runtime (TTS)
-onnxruntime-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime-android", version.ref = "onnxruntime" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }

@@ -10,8 +10,11 @@ import com.TopMob.bookmt.domain.parser.BookParser
 class BookParserFactory(private val parsers: Set<@JvmSuppressWildcards BookParser>) {
 
     /** Finds a parser that accepts the file, or null if the format is unsupported. */
-    fun parserFor(fileName: String, mimeType: String?): BookParser? =
-        parsers.firstOrNull { it.canParse(fileName, mimeType) }
+    fun parserFor(fileName: String, mimeType: String?): BookParser? {
+        val extensionFormat = BookFormat.fromFileName(fileName)
+        return if (extensionFormat != BookFormat.UNKNOWN) parserFor(extensionFormat)
+        else parsers.firstOrNull { it.canParse(fileName, mimeType) }
+    }
 
     fun parserFor(format: BookFormat): BookParser? =
         parsers.firstOrNull { it.format == format }

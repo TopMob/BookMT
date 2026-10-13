@@ -29,6 +29,18 @@ data class ReaderSettings(
         const val MIN_LINE_SPACING = 1.0f
         const val MAX_LINE_SPACING = 2.5f
     }
+
+    /** Bound restored/legacy preferences before they reach sliders or text measurement. */
+    fun sanitized(): ReaderSettings {
+        val defaults = ReaderSettings()
+        return copy(
+            fontSizeSp = fontSizeSp.takeIf { it.isFinite() }?.coerceIn(MIN_FONT_SIZE_SP, MAX_FONT_SIZE_SP) ?: defaults.fontSizeSp,
+            lineSpacingMultiplier = lineSpacingMultiplier.takeIf { it.isFinite() }?.coerceIn(MIN_LINE_SPACING, MAX_LINE_SPACING) ?: defaults.lineSpacingMultiplier,
+            horizontalMarginDp = horizontalMarginDp.coerceIn(0, 64),
+            verticalMarginDp = verticalMarginDp.coerceIn(0, 64),
+            brightnessLevel = brightnessLevel.takeIf { it.isFinite() }?.coerceIn(0.01f, 1f) ?: defaults.brightnessLevel,
+        )
+    }
 }
 
 /** Built-in and custom reading themes. Concrete colors live in the presentation theme layer. */

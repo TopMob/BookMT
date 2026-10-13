@@ -11,6 +11,7 @@ import com.TopMob.bookmt.domain.usecase.GetBooksUseCase
 import com.TopMob.bookmt.domain.usecase.ImportBookUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -47,12 +48,15 @@ class BookshelfViewModel @Inject constructor(
         query,
         viewMode,
         transientError,
-    ) { books, q, mode, error ->
+        bookRepository.observeBooks(),
+    ) { books, q, mode, error, allBooks ->
         BookshelfUiState(
             books = books,
+            continueReadingBook = allBooks.filter { it.hasBeenOpened && it.progress < 1f }
+                .maxByOrNull { it.lastReadTimestamp },
             query = q,
             viewMode = mode,
-            availableTags = books.flatMap { it.tags }.distinct().sorted(),
+            availableTags = allBooks.flatMap { it.tags }.distinct().sorted(),
             isLoading = false,
             errorMessage = error,
         )
@@ -89,7 +93,7 @@ class BookshelfViewModel @Inject constructor(
     }
 
     fun onDeleteBook(bookId: Long) {
-        viewModelScope.launch { bookRepository.deleteBook(bookId) }
+        libraryAction { bookRepository.deleteBook(bookId) }
     }
 
     /**
@@ -97,23 +101,23 @@ class BookshelfViewModel @Inject constructor(
      * full progress (1f) and unread as zero progress reset to the start of the book.
      */
     fun onSetReadState(book: Book, read: Boolean) {
-        viewModelScope.launch { applyReadState(book, read) }
+        libraryAction { applyReadState(book, read) }
     }
 
     /* -------- Batch (multi-select) operations -------- */
 
     fun onDeleteBooks(ids: Collection<Long>) {
-        viewModelScope.launch { ids.forEach { bookRepository.deleteBook(it) } }
+        libraryAction { ids.forEach { bookRepository.deleteBook(it) } }
     }
 
     fun onSetReadStateForBooks(books: Collection<Book>, read: Boolean) {
-        viewModelScope.launch { books.forEach { applyReadState(it, read) } }
+        libraryAction { books.forEach { applyReadState(it, read) } }
     }
 
     fun onAddTagToBooks(books: Collection<Book>, tag: String) {
         val trimmed = tag.trim()
         if (trimmed.isBlank()) return
-        viewModelScope.launch {
+        libraryAction {
             books.forEach { book ->
                 if (trimmed !in book.tags) bookRepository.updateTags(book.id, book.tags + trimmed)
             }
@@ -125,6 +129,16 @@ class BookshelfViewModel @Inject constructor(
             bookRepository.updateProgress(book.id, progress = 1f, position = book.lastReadPosition)
         } else {
             bookRepository.updateProgress(book.id, progress = 0f, position = 0)
+        }
+    }
+
+    private fun libraryAction(action: suspend () -> Unit) = viewModelScope.launch {
+        try {
+            action()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            transientError.value = e.message ?: "Failed to update library"
         }
     }
 

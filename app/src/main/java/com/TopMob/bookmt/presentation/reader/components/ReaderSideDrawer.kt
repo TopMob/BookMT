@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -69,7 +72,8 @@ fun ReaderSideDrawer(
                 tonalElevation = 4.dp,
                 modifier = Modifier
                     .fillMaxHeight()
-                    .width(320.dp),
+                    .width(320.dp)
+                    .windowInsetsPadding(WindowInsets.systemBars),
             ) {
                 content()
             }
@@ -92,7 +96,7 @@ fun NotesBookmarksPanel(
         Spacer(Modifier.padding(4.dp))
         if (bookmarks.isEmpty()) {
             Text(
-                text = "No bookmarks yet.",
+                text = stringResource(R.string.notes_empty),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

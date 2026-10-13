@@ -65,7 +65,7 @@ class TxtBookParser(
     private companion object {
         const val DEFAULT_TITLE = "Text"
         val CHAPTER_HEADING = Regex(
-            pattern = "^(chapter|part|book)\\s+([0-9]+|[ivxlcdm]+|[a-z]+)\\b.*",
+            pattern = "^(chapter|part|book|глава|часть|книга)\\s+([0-9]+|[ivxlcdm]+|[\\p{L}]+)\\b.*",
             option = RegexOption.IGNORE_CASE,
         )
     }

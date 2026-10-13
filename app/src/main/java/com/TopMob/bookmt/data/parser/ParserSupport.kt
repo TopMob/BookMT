@@ -34,5 +34,18 @@ internal fun assembleContent(
     return BookContent(title, author, chapters, TableOfContents(tocEntries))
 }
 
-/** Reads an InputStream fully as UTF-8 text. Centralized so charset handling is consistent. */
-internal fun ByteArray.decodeAsText(): String = toString(Charsets.UTF_8)
+/** Honor Unicode BOMs; older Russian TXT books commonly use Windows-1251. */
+internal fun ByteArray.decodeAsText(): String {
+    if (size >= 2 && this[0] == 0xFF.toByte() && this[1] == 0xFE.toByte())
+        return copyOfRange(2, size).toString(Charsets.UTF_16LE)
+    if (size >= 2 && this[0] == 0xFE.toByte() && this[1] == 0xFF.toByte())
+        return copyOfRange(2, size).toString(Charsets.UTF_16BE)
+    return try {
+        Charsets.UTF_8.newDecoder()
+            .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+            .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+            .decode(java.nio.ByteBuffer.wrap(this)).toString().removePrefix("\uFEFF")
+    } catch (_: java.nio.charset.CharacterCodingException) {
+        toString(java.nio.charset.Charset.forName("windows-1251"))
+    }
+}

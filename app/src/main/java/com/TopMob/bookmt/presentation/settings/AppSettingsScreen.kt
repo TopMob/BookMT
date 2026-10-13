@@ -54,6 +54,7 @@ import com.TopMob.bookmt.domain.model.ReaderFontFamily
 import com.TopMob.bookmt.domain.model.ReaderSettings
 import com.TopMob.bookmt.domain.model.ReaderTextAlignment
 import com.TopMob.bookmt.domain.model.ReaderTheme
+import com.TopMob.bookmt.domain.model.ReadingMode
 import java.io.File
 
 /**
@@ -83,14 +84,6 @@ fun AppSettingsScreen(
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri -> if (uri != null) viewModel.onImportBackup(uri) }
-
-    val fontPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        // Note: Font importing logic needs to be implemented in ViewModel if missing,
-        // for now we'll just omit custom font picking from global settings to keep it simple,
-        // or we could add it if we have copyFontToInternal available.
-    }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -145,6 +138,14 @@ fun AppSettingsScreen(
 
             val rs = state.readerSettings
             val onUpdate = viewModel::onUpdateReaderSettings
+
+            SectionLabel(stringResource(R.string.settings_reading_mode))
+            ChipRow(
+                options = ReadingMode.entries,
+                selected = rs.readingMode,
+                label = { stringResource(if (it == ReadingMode.PAGED) R.string.settings_mode_paged else R.string.settings_mode_scroll) },
+                onSelect = { mode -> onUpdate { it.copy(readingMode = mode) } },
+            )
 
             SectionLabel(stringResource(R.string.settings_theme))
             ChipRow(
@@ -233,9 +234,13 @@ fun AppSettingsScreen(
 
 /** Relaunches the app so Room/DataStore re-open the freshly restored files. */
 private fun restartApp(context: Context) {
-    val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-    intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-    context.startActivity(intent)
+    val launch = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return
+    // A separate task/process start avoids losing the relaunch when the old process exits.
+    val intent = Intent.makeRestartActivityTask(launch.component)
+    val pending = android.app.PendingIntent.getActivity(context, 0, intent,
+        android.app.PendingIntent.FLAG_CANCEL_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
+    val alarms = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+    alarms.set(android.app.AlarmManager.ELAPSED_REALTIME, android.os.SystemClock.elapsedRealtime() + 1000, pending)
     Runtime.getRuntime().exit(0)
 }
 

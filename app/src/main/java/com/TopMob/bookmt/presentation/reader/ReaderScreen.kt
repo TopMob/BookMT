@@ -3,10 +3,6 @@ package com.TopMob.bookmt.presentation.reader
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -16,8 +12,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -25,10 +19,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import kotlinx.coroutines.launch
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -43,7 +35,14 @@ import com.TopMob.bookmt.presentation.reader.components.NotesBookmarksPanel
 import com.TopMob.bookmt.presentation.reader.components.ReaderBottomBar
 import com.TopMob.bookmt.presentation.reader.components.ReaderSideDrawer
 import com.TopMob.bookmt.presentation.reader.components.ReaderTopBar
-import com.TopMob.bookmt.presentation.reader.components.ScrollReaderContent
+import com.TopMob.bookmt.presentation.reader.components.ReaderContent
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.activity.compose.BackHandler
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.LaunchedEffect
 import com.TopMob.bookmt.presentation.reader.components.TableOfContentsPanel
 import com.TopMob.bookmt.presentation.theme.ReaderColors
 
@@ -54,7 +53,6 @@ fun ReaderScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val colors = ReaderColors.forTheme(state.settings.theme)
-    val context = LocalContext.current
 
     KeepScreenOn(enabled = state.settings.keepScreenOn)
     BrightnessOverride(
@@ -66,17 +64,18 @@ fun ReaderScreen(
         onPaused = viewModel::onReadingPaused,
     )
 
-    val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
+    var turnPage by remember { mutableStateOf<((Int) -> Unit)?>(null) }
+    val snackbar = remember { SnackbarHostState() }
+    BackHandler(state.overlay != ReaderOverlay.NONE) { viewModel.onDismissOverlay() }
+    LaunchedEffect(state.errorMessage) {
+        state.errorMessage?.takeIf { state.content != null }?.let {
+            snackbar.showSnackbar(it)
+            viewModel.onErrorShown()
+        }
+    }
 
     VolumeKeyScroll { key ->
-        val scrollAmount = listState.layoutInfo.viewportSize.height * 1.0f
-        if (scrollAmount > 0) {
-            scope.launch {
-                if (key == VolumeKey.UP) listState.animateScrollBy(-scrollAmount)
-                else listState.animateScrollBy(scrollAmount)
-            }
-        }
+        turnPage?.invoke(if (key == VolumeKey.UP) -1 else 1)
     }
 
     Box(modifier = Modifier
@@ -86,22 +85,11 @@ fun ReaderScreen(
         ReaderSurface(
             state = state,
             colors = colors,
-            listState = listState,
+            onRegisterTurn = { turnPage = it },
+            onPageChanged = viewModel::onPageChanged,
             modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars),
             onScrollOffsetChanged = viewModel::onScrollOffsetChanged,
-            onTapZone = { zone ->
-                when (zone) {
-                    ReaderTapZone.LEFT -> {
-                        val scrollAmount = listState.layoutInfo.viewportSize.height * 1.0f
-                        if (scrollAmount > 0) scope.launch { listState.animateScrollBy(-scrollAmount) }
-                    }
-                    ReaderTapZone.RIGHT -> {
-                        val scrollAmount = listState.layoutInfo.viewportSize.height * 1.0f
-                        if (scrollAmount > 0) scope.launch { listState.animateScrollBy(scrollAmount) }
-                    }
-                    ReaderTapZone.CENTER -> viewModel.onToggleControls()
-                }
-            },
+            onToggleControls = viewModel::onToggleControls,
         )
 
         // Left-edge vertical drag adjusts brightness when the override is enabled.
@@ -131,14 +119,13 @@ fun ReaderScreen(
         )
 
         Box(modifier = Modifier.align(Alignment.BottomCenter)) {
-            val charsPerPage = 1500
-            val fakeCurrentPage = (state.currentOffset / charsPerPage) + 1
-            val fakeTotalPages = (state.totalLength / charsPerPage) + 1
-
             ReaderBottomBar(
                 visible = state.showControls,
-                currentPage = fakeCurrentPage,
-                totalPages = fakeTotalPages,
+                currentPage = state.currentPage,
+                totalPages = state.totalPages,
+                progress = state.progress,
+                showProgressSlider = state.settings.showProgressSlider,
+                onSeek = { viewModel.jumpToOffset((it * state.totalLength).toInt()) },
                 ttsStatus = state.tts.status,
                 activeVoiceId = state.tts.activeVoiceId,
                 onPrevChapter = viewModel::onPrevChapter,
@@ -154,6 +141,7 @@ fun ReaderScreen(
                 onStopTts = viewModel::onStopTts,
             )
         }
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
 
         // Notes & Bookmarks side drawer
         ReaderSideDrawer(
@@ -210,9 +198,10 @@ private fun ReadingTimeTracker(onResumed: () -> Unit, onPaused: () -> Unit) {
 private fun ReaderSurface(
     state: ReaderUiState,
     colors: ReaderColors,
-    listState: LazyListState,
+    onRegisterTurn: (((Int) -> Unit)?) -> Unit,
+    onPageChanged: (Int, Int) -> Unit,
     onScrollOffsetChanged: (Int) -> Unit,
-    onTapZone: (ReaderTapZone) -> Unit,
+    onToggleControls: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val content = state.content
@@ -230,15 +219,19 @@ private fun ReaderSurface(
             )
         }
 
-        else -> ScrollReaderContent(
+        else -> ReaderContent(
             content = content,
             textStyle = state.settings.toTextStyle(colors.text),
             colors = colors,
             horizontalPadding = state.settings.horizontalMarginDp,
             verticalPadding = state.settings.verticalMarginDp,
-            listState = listState,
+            mode = state.settings.readingMode,
+            currentOffset = state.currentOffset,
+            navigationVersion = state.navigationVersion,
+            onRegisterTurn = onRegisterTurn,
+            onPageChanged = onPageChanged,
             onOffsetChanged = onScrollOffsetChanged,
-            onTapZone = onTapZone,
+            onToggleControls = onToggleControls,
             modifier = modifier,
         )
     }

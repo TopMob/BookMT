@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface BookmarkDao {
+    @Query("SELECT * FROM bookmarks ORDER BY timestamp DESC")
+    fun observeAll(): Flow<List<BookmarkEntity>>
 
     @Query("SELECT * FROM bookmarks WHERE book_id = :bookId ORDER BY position ASC")
     fun observeForBook(bookId: Long): Flow<List<BookmarkEntity>>

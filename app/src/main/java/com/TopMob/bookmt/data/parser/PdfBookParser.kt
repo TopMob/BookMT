@@ -31,7 +31,7 @@ class PdfBookParser(
             BookFormat.fromMimeType(mimeType) == BookFormat.PDF
 
     override suspend fun parseMetadata(input: InputStream, fileName: String): BookMetadata =
-        BookMetadata(title = fileName.substringBeforeLast('.').ifBlank { fileName })
+        throw BookParseException("PDF is not supported yet. Please import EPUB, FB2, TXT or Markdown.")
 
     override suspend fun parse(input: InputStream, fileName: String): BookContent =
         throw BookParseException("PDF parsing is not yet implemented")

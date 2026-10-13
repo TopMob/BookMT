@@ -44,16 +44,9 @@ class OnnxTtsEngine(
     @Volatile private var stopped = false
 
     override suspend fun prepare(assignment: VoiceAssignment) {
-        _state.value = TtsPlaybackState(status = TtsStatus.PREPARING)
-        this.assignment = assignment
-        // Pre-load the distinct voices referenced by the assignment so the first switch is instant.
-        listOfNotNull(
-            assignment.narrator,
-            assignment.maleCharacter,
-            assignment.femaleCharacter,
-            assignment.unknownCharacter,
-        ).distinctBy { it.id }.forEach { loadVoice(it) }
-        _state.value = TtsPlaybackState(status = TtsStatus.IDLE)
+        val message = "Read aloud is not available: voice models and audio synthesis are not installed."
+        _state.value = TtsPlaybackState(status = TtsStatus.ERROR, errorMessage = message)
+        throw UnsupportedOperationException(message)
     }
 
     override suspend fun availableVoices(): List<VoiceProfile> =

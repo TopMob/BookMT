@@ -1,4 +1,5 @@
 <resources>
+    <string name="notes_empty">No bookmarks or notes yet.</string>
     <string name="app_name">BookMT</string>
 
     <!-- Bookshelf -->

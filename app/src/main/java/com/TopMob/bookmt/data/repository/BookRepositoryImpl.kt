@@ -14,6 +14,7 @@ import com.TopMob.bookmt.domain.model.BookContent
 import com.TopMob.bookmt.domain.model.BookFormat
 import com.TopMob.bookmt.domain.repository.BookRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.IOException
@@ -72,6 +73,7 @@ class BookRepositoryImpl(
                 ?: return@withContext Resource.Error(IllegalStateException("Insert failed"))
             Resource.Success(saved)
         } catch (t: Throwable) {
+            if (t is CancellationException) throw t
             Resource.Error(t)
         }
     }
@@ -87,6 +89,7 @@ class BookRepositoryImpl(
                 val content = openStream(book.uri).use { parser.parse(it, book.title) }
                 Resource.Success(content)
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 Resource.Error(t)
             }
         }

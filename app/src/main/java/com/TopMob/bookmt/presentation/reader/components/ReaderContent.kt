@@ -1,82 +1,153 @@
 package com.TopMob.bookmt.presentation.reader.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.TopMob.bookmt.domain.model.BookContent
+import com.TopMob.bookmt.domain.model.ReadingMode
+import com.TopMob.bookmt.presentation.reader.ReaderPage
+import com.TopMob.bookmt.presentation.reader.ReaderPaginator
 import com.TopMob.bookmt.presentation.reader.ReaderTapZone
 import com.TopMob.bookmt.presentation.theme.ReaderColors
-import androidx.compose.ui.text.TextStyle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
-import androidx.compose.foundation.gestures.animateScrollBy
 import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.withContext
 
-
-
-/**
- * Continuous vertical-scroll reading surface. Each chapter is one lazy item, so very long books are
- * never fully laid out at once. The top-most visible chapter's offset is reported for progress.
- */
+/** Shared measured pagination keeps positions stable across modes, fonts and screen sizes. */
 @Composable
-fun ScrollReaderContent(
+fun ReaderContent(
     content: BookContent,
     textStyle: TextStyle,
     colors: ReaderColors,
+    mode: ReadingMode,
     horizontalPadding: Int,
     verticalPadding: Int,
-    listState: androidx.compose.foundation.lazy.LazyListState,
+    currentOffset: Int,
+    navigationVersion: Long,
     onOffsetChanged: (Int) -> Unit,
-    onTapZone: (ReaderTapZone) -> Unit,
+    onPageChanged: (Int, Int) -> Unit,
+    onRegisterTurn: (((Int) -> Unit)?) -> Unit,
+    onToggleControls: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.firstVisibleItemIndex }
-            .distinctUntilChanged()
-            .collect { index ->
-                content.chapters.getOrNull(index)?.let { onOffsetChanged(it.startOffset) }
-            }
-    }
-
-    LazyColumn(
-        state = listState,
-        contentPadding = PaddingValues(horizontal = horizontalPadding.dp, vertical = verticalPadding.dp),
-        modifier = modifier
-            .fillMaxSize()
-            .background(colors.background)
-            .pointerInput(Unit) {
-                detectTapGestures { offset ->
-                    onTapZone(ReaderTapZone.fromX(offset.x, size.width.toFloat()))
+    val density = LocalDensity.current
+    val measurer = rememberTextMeasurer(cacheSize = 16)
+    val latestOffset by rememberUpdatedState(currentOffset)
+    val latestOnOffset by rememberUpdatedState(onOffsetChanged)
+    val latestOnPage by rememberUpdatedState(onPageChanged)
+    BoxWithConstraints(modifier.fillMaxSize().background(colors.background)) {
+        val width = with(density) { (maxWidth - (horizontalPadding * 2).dp).roundToPx() }.coerceAtLeast(1)
+        val height = with(density) { (maxHeight - (verticalPadding * 2).dp).roundToPx() }.coerceAtLeast(1)
+        var pages by remember(content, textStyle, width, height) { mutableStateOf<List<ReaderPage>>(emptyList()) }
+        LaunchedEffect(content, textStyle, width, height) {
+            pages = withContext(Dispatchers.Default) {
+                ReaderPaginator.paginate(content, charBudget = 8000) { text ->
+                    val layout = measurer.measure(text, textStyle, constraints = Constraints(maxWidth = width))
+                    var line = 0
+                    while (line < layout.lineCount && layout.getLineBottom(line) <= height) line++
+                    layout.getLineEnd((line - 1).coerceAtLeast(0), visibleEnd = false)
                 }
-            },
-    ) {
-        items(
-            count = content.chapters.size,
-            key = { content.chapters[it].index },
-        ) { index ->
-            Text(
-                text = content.chapters[index].text,
-                style = textStyle,
-                modifier = Modifier.padding(bottom = 16.dp),
-            )
+            }
+        }
+        if (pages.isEmpty()) {
+            CircularProgressIndicator(Modifier.align(Alignment.Center))
+            return@BoxWithConstraints
+        }
+        key(pages, mode) {
+            val start = remember { latestOffset }
+            val initialPage = remember { ReaderPaginator.pageIndexForOffset(pages, start) }
+            val pager = rememberPagerState(initialPage = initialPage, pageCount = { pages.size })
+            val list = rememberLazyListState(initialFirstVisibleItemIndex = initialPage)
+            val scope = rememberCoroutineScope()
+            var restoredVersion by remember { mutableStateOf<Long?>(null) }
+            LaunchedEffect(navigationVersion) {
+                restoredVersion = null
+                val target = latestOffset
+                val index = ReaderPaginator.pageIndexForOffset(pages, target)
+                if (mode == ReadingMode.PAGED) {
+                    pager.scrollToPage(index)
+                } else {
+                    val page = pages[index]
+                    val layout = measurer.measure(page.text, textStyle, constraints = Constraints(maxWidth = width))
+                    val localOffset = (target - page.startOffset).coerceIn(0, page.text.length)
+                    val y = if (page.text.isEmpty()) 0 else layout.getLineTop(layout.getLineForOffset(localOffset)).toInt()
+                    list.scrollToItem(index, y)
+                }
+                restoredVersion = navigationVersion
+            }
+            LaunchedEffect(pages, mode, restoredVersion, navigationVersion) {
+                if (restoredVersion != navigationVersion) return@LaunchedEffect
+                if (mode == ReadingMode.PAGED) {
+                    snapshotFlow { pager.settledPage }.distinctUntilChanged().collect { index ->
+                        latestOnOffset(pages[index].startOffset)
+                        latestOnPage(index + 1, pages.size)
+                    }
+                } else {
+                    snapshotFlow { list.firstVisibleItemIndex to list.firstVisibleItemScrollOffset }
+                        .distinctUntilChanged().collect { (index, y) ->
+                            val page = pages[index]
+                            val layout = measurer.measure(page.text, textStyle, constraints = Constraints(maxWidth = width))
+                            val local = if (page.text.isEmpty()) 0 else layout.getLineStart(layout.getLineForVerticalPosition(y.toFloat()))
+                            latestOnOffset(page.startOffset + local)
+                            latestOnPage(index + 1, pages.size)
+                        }
+                }
+            }
+            val turn: (Int) -> Unit = { direction ->
+                scope.launch {
+                    if (mode == ReadingMode.PAGED) {
+                        pager.animateScrollToPage((pager.currentPage + direction).coerceIn(0, pages.lastIndex))
+                    } else {
+                        list.animateScrollBy(list.layoutInfo.viewportSize.height * direction.toFloat())
+                    }
+                }
+            }
+            DisposableEffect(pages, mode) {
+                onRegisterTurn(turn)
+                onDispose { onRegisterTurn(null) }
+            }
+            val tapModifier = Modifier.pointerInput(mode, pages) {
+                detectTapGestures { position ->
+                    when (ReaderTapZone.fromX(position.x, size.width.toFloat())) {
+                        ReaderTapZone.LEFT -> turn(-1)
+                        ReaderTapZone.RIGHT -> turn(1)
+                        ReaderTapZone.CENTER -> onToggleControls()
+                    }
+                }
+            }
+            if (mode == ReadingMode.PAGED) {
+                HorizontalPager(pager, modifier = Modifier.fillMaxSize().then(tapModifier)) { index ->
+                    Text(pages[index].text, style = textStyle, modifier = Modifier.fillMaxSize()
+                        .padding(horizontal = horizontalPadding.dp, vertical = verticalPadding.dp))
+                }
+            } else {
+                LazyColumn(state = list, modifier = Modifier.fillMaxSize().then(tapModifier),
+                    contentPadding = PaddingValues(horizontal = horizontalPadding.dp, vertical = verticalPadding.dp)) {
+                    items(pages.size, key = { pages[it].startOffset }) { index ->
+                        Text(pages[index].text, style = textStyle)
+                    }
+                }
+            }
         }
     }
 }

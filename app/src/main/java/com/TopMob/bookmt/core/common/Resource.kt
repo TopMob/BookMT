@@ -32,5 +32,6 @@ inline fun <T> Resource<T>.onError(action: (Throwable) -> Unit): Resource<T> {
 inline fun <T> resourceCatching(block: () -> T): Resource<T> = try {
     Resource.Success(block())
 } catch (t: Throwable) {
+    if (t is kotlinx.coroutines.CancellationException) throw t
     Resource.Error(t)
 }

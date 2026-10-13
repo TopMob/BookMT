@@ -8,4 +8,9 @@ import dagger.hilt.android.HiltAndroidApp
  * creating the application-level dependency container that every other Hilt component derives from.
  */
 @HiltAndroidApp
-class BookMTApplication : Application()
+class BookMTApplication : Application() {
+    override fun onCreate() {
+        com.TopMob.bookmt.data.backup.BackupManager.applyPendingRestore(this)
+        super.onCreate()
+    }
+}

@@ -82,6 +82,7 @@ fun BookshelfScreen(
     onBookClick: (Long) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenDetails: (Long) -> Unit,
+    onOpenBookmarks: () -> Unit,
     viewModel: BookshelfViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -178,7 +179,7 @@ fun BookshelfScreen(
                     selected = false,
                     onClick = {
                         scope.launch { drawerState.close() }
-                        // TODO: Implement global bookmarks screen
+                        onOpenBookmarks()
                     }
                 )
                 HorizontalDivider()
@@ -312,10 +313,7 @@ fun BookshelfScreen(
             }
 
             // Continue Reading Banner/Button
-            val continueReadingBook = remember(state.books) {
-                state.books.filter { it.progress > 0f && it.progress < 1f }
-                    .maxByOrNull { it.lastReadTimestamp }
-            }
+            val continueReadingBook = state.continueReadingBook
             if (continueReadingBook != null && !selectionMode) {
                 ExtendedFloatingActionButton(
                     onClick = { onBookClick(continueReadingBook.id) },

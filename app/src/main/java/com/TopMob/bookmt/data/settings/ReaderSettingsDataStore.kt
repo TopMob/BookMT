@@ -43,7 +43,7 @@ class ReaderSettingsDataStore(private val context: Context) {
 
     suspend fun update(transform: (ReaderSettings) -> ReaderSettings) {
         context.readerDataStore.edit { prefs ->
-            val updated = transform(prefs.toReaderSettings())
+            val updated = transform(prefs.toReaderSettings()).sanitized()
             prefs.writeReaderSettings(updated)
         }
     }
@@ -64,7 +64,7 @@ class ReaderSettingsDataStore(private val context: Context) {
             keepScreenOn = this[Keys.KEEP_SCREEN_ON] ?: defaults.keepScreenOn,
             showProgressSlider = this[Keys.SHOW_SLIDER] ?: defaults.showProgressSlider,
             customFontPath = this[Keys.CUSTOM_FONT_PATH] ?: defaults.customFontPath,
-        )
+        ).sanitized()
     }
 
     private fun MutablePreferences.writeReaderSettings(s: ReaderSettings) {

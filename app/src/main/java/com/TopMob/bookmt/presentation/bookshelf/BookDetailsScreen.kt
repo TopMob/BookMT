@@ -31,6 +31,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -67,6 +69,12 @@ fun BookDetailsScreen(
     viewModel: BookDetailsViewModel = hiltViewModel(),
 ) {
     val book by viewModel.book.collectAsStateWithLifecycle()
+    val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
+    val error by viewModel.error.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(error) {
+        error?.let { snackbar.showSnackbar(it); viewModel.clearError() }
+    }
     val context = LocalContext.current
 
     var title by rememberSaveable { mutableStateOf("") }
@@ -99,6 +107,7 @@ fun BookDetailsScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.book_details_title)) },
@@ -112,6 +121,7 @@ fun BookDetailsScreen(
                 },
                 actions = {
                     IconButton(
+                        enabled = initialized && !isSaving,
                         onClick = {
                             viewModel.save(
                                 title = title,
@@ -119,8 +129,8 @@ fun BookDetailsScreen(
                                 description = description,
                                 coverImagePath = coverPath,
                                 tags = tagsText.split(",", "\n"),
+                                onSaved = onNavigateBack,
                             )
-                            onNavigateBack()
                         },
                     ) {
                         Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.action_save))

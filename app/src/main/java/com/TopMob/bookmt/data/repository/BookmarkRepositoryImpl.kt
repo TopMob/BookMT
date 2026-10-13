@@ -15,6 +15,8 @@ class BookmarkRepositoryImpl(
     private val dispatchers: DispatcherProvider,
     private val now: () -> Long = System::currentTimeMillis,
 ) : BookmarkRepository {
+    override fun observeAllBookmarks(): Flow<List<Bookmark>> =
+        bookmarkDao.observeAll().map { list -> list.map { it.toDomain() } }
 
     override fun observeBookmarks(bookId: Long): Flow<List<Bookmark>> =
         bookmarkDao.observeForBook(bookId).map { list -> list.map { it.toDomain() } }

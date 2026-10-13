@@ -9,6 +9,25 @@ import org.junit.Test
 
 class ReaderPaginatorTest {
 
+    @Test
+    fun `pagination preserves text across chapters and word boundaries`() {
+        val texts = arrayOf("word \n".repeat(50), "Next chapter 🐈 ".repeat(30))
+        val pages = ReaderPaginator.paginate(content(*texts), charBudget = 31)
+        assertEquals(texts.joinToString(""), pages.joinToString("") { it.text })
+        pages.zipWithNext().forEach { (a, b) -> assertEquals(a.endOffset, b.startOffset) }
+        assertTrue(pages.none { it.text.lastOrNull()?.isHighSurrogate() == true })
+    }
+
+    @Test
+    fun `layout fitting limits each page and preserves all characters`() {
+        val text = "one two three four five ".repeat(100)
+        val pages = ReaderPaginator.paginate(content(text), charBudget = 100) { minOf(27, it.length) }
+        assertEquals(text, pages.joinToString("") { it.text })
+        assertTrue(pages.all { it.text.length <= 27 })
+        assertEquals(0, ReaderPaginator.pageIndexForOffset(pages, -1))
+        assertEquals(pages.lastIndex, ReaderPaginator.pageIndexForOffset(pages, Int.MAX_VALUE))
+    }
+
     private fun content(vararg texts: String): BookContent {
         var offset = 0
         val chapters = texts.mapIndexed { i, t ->

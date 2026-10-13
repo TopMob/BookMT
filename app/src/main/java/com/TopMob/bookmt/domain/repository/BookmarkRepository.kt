@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.Flow
 
 /** Manages bookmarks, highlights, and notes for the "Notes & Bookmarks" drawer. */
 interface BookmarkRepository {
+    fun observeAllBookmarks(): Flow<List<Bookmark>>
 
     fun observeBookmarks(bookId: Long): Flow<List<Bookmark>>
 

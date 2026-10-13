@@ -1,6 +1,6 @@
 # BookMT — Architecture
 
-A modern, AI-augmented e-book reader. **Clean Architecture + MVVM**, single-module, organized by
+An Android e-book reader. **Clean Architecture + MVVM**, single-module, organized by
 layer then feature.
 
 ```
@@ -21,7 +21,7 @@ com.TopMob.bookmt
 │   └── repository/        Repository implementations
 └── presentation/         Jetpack Compose (Material 3)
     ├── navigation/        NavHost + typed routes
-    ├── bookshelf/         ViewModel + UiState + Screen + components (grid/list, sort/filter, progress)
+    ├── bookshelf/         Library, details editor, global bookmarks, grid/list, sort/filter, progress
     ├── reader/            ViewModel + UiState + Screen + paginator + components (paged/scroll, controls, drawers, settings)
     └── theme/             ReaderColors (Day/Sepia/Night/AMOLED/custom)
 ```
@@ -33,22 +33,25 @@ com.TopMob.bookmt
 - **Reactive state:** Room/DataStore expose `Flow`s; ViewModels expose a single immutable
   `StateFlow<UiState>` collected with `collectAsStateWithLifecycle`. All filtering/sorting/pagination
   runs off the main thread via an injected `DispatcherProvider`.
-- **Performance:** `ReaderPaginator` slices the flattened book stream into bounded-size pages at word
-  boundaries (O(n), off-thread), so the `HorizontalPager`/`LazyColumn` only ever composes the visible
-  page(s) regardless of book size — no UI jank on large books. A single **absolute character offset**
+- **Reading surface:** `ReaderPaginator` slices chapter text into bounded-size pages at word
+  boundaries, using Compose text measurement for the actual viewport and font. `HorizontalPager`
+  and `LazyColumn` compose visible pages. Parsing still loads the book into memory; very large
+  books need a disk-backed parser/cache. A single **absolute character offset**
   addresses any position (progress, bookmarks, TTS cursor).
 - **Extensible parsing:** add a format by implementing `BookParser` and binding it `@IntoSet` in
   `ParserModule`; `BookParserFactory` dispatches automatically. PDF is a structural placeholder.
-- **AI multi-voice TTS:** `TextAnalyzer` tags prose with `SpeakerRole`
+- **Unfinished multi-voice TTS:** `TextAnalyzer` tags prose with `SpeakerRole`
   (NARRATOR / MALE / FEMALE / UNKNOWN); `TtsEngine` consumes the tagged stream and switches
-  `VoiceProfile`s on the fly. `OnnxTtsEngine` wires the entire control flow with native
-  inference/playback stubbed at `SEAM:` markers, ready for sherpa-onnx + Piper `.onnx` models in
-  `assets/voices/`.
+  `VoiceProfile`s. Native synthesis and playback are not implemented. `OnnxTtsEngine.prepare`
+  explicitly reports this limitation rather than simulating silent playback. ONNX is not shipped
+  until a working engine and voice assets are integrated.
 
 ## Tech stack
 
 Kotlin 2.2 · Jetpack Compose (Material 3) · Hilt · Room (KSP) · DataStore · Coroutines/Flow ·
-Navigation-Compose · Coil · ONNX Runtime · minSdk 24 / targetSdk 36.
+Navigation-Compose · Coil · minSdk 24 / targetSdk 36.
+
+See [TECHNICAL_AUDIT.md](TECHNICAL_AUDIT.md) for fixes, validation and remaining limitations.
 
 > The `ksp` version in `gradle/libs.versions.toml` must track the Kotlin version exactly; bump it if
 > a Gradle sync reports an unresolved KSP artifact.

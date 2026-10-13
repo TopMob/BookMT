@@ -31,8 +31,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.Slider
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -103,6 +108,9 @@ fun ReaderBottomBar(
     visible: Boolean,
     currentPage: Int,
     totalPages: Int,
+    progress: Float,
+    showProgressSlider: Boolean,
+    onSeek: (Float) -> Unit,
     ttsStatus: TtsStatus,
     activeVoiceId: String?,
     onPrevChapter: () -> Unit,
@@ -122,6 +130,11 @@ fun ReaderBottomBar(
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
             ) {
+                if (showProgressSlider) {
+                    var seek by remember { mutableStateOf<Float?>(null) }
+                    Slider(value = seek ?: progress, onValueChange = { seek = it },
+                        onValueChangeFinished = { seek?.let(onSeek); seek = null })
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,

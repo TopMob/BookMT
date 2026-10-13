@@ -11,6 +11,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 
 /** Backs the book details/edit screen: observes one book and persists user edits to its card. */
@@ -27,14 +30,24 @@ class BookDetailsViewModel @Inject constructor(
     val book: StateFlow<Book?> = repository.observeBook(bookId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), null)
 
+    private val _isSaving = MutableStateFlow(false)
+    val isSaving = _isSaving.asStateFlow()
+    private val _error = MutableStateFlow<String?>(null)
+    val error = _error.asStateFlow()
+    fun clearError() { _error.value = null }
+
     fun save(
         title: String,
         author: String?,
         description: String?,
         coverImagePath: String?,
         tags: List<String>,
+        onSaved: () -> Unit,
     ) {
+        if (_isSaving.value) return
+        _isSaving.value = true
         viewModelScope.launch {
+            try {
             repository.updateMetadata(
                 bookId = bookId,
                 title = title.trim().ifBlank { "Untitled" },
@@ -43,6 +56,14 @@ class BookDetailsViewModel @Inject constructor(
                 coverImagePath = coverImagePath,
                 tags = tags.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
             )
+                onSaved()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _error.value = e.message ?: "Failed to save book details"
+            } finally {
+                _isSaving.value = false
+            }
         }
     }
 }

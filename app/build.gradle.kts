@@ -46,13 +46,16 @@ android {
         buildConfig = true
     }
 
+    // Both UI languages must be installed for the in-app language switcher.
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
-        // ONNX Runtime ships native .so libs; keep them uncompressed for mmap loading.
-        jniLibs {
-            useLegacyPackaging = false
         }
     }
 }
@@ -110,9 +113,6 @@ dependencies {
 
     // Image loading (book covers)
     implementation(libs.coil.compose)
-
-    // AI / TTS - ONNX Runtime
-    implementation(libs.onnxruntime.android)
 
     // Unit testing
     testImplementation(libs.junit)
