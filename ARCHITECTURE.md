@@ -1,6 +1,6 @@
 # BookMT — Architecture
 
-> Обязательное ограничение: полностью офлайн-приложение. Сеть, облако, телеметрия и удалённый анализ не входят в архитектуру. Будущая TTS — локальные модели и локальный синтез. См. `AGENTS.md` и `FEATURE_BASELINE.md`.
+> Обязательное ограничение: полностью офлайн-приложение. Сеть, облако, телеметрия и удалённый анализ не входят в архитектуру. TTS — встроенные локальные модели и локальный синтез (OFFLINE_TTS.md). См. `AGENTS.md` и `FEATURE_BASELINE.md`.
 
 An Android e-book reader. **Clean Architecture + MVVM**, single-module, organized by
 layer then feature.
@@ -18,7 +18,7 @@ com.TopMob.bookmt
 │   ├── local/             Room (entities, DAOs, DB, converters)
 │   ├── settings/          DataStore-backed ReaderSettings
 │   ├── parser/            TXT, Markdown, FB2 parsers + PDF placeholder + factory
-│   ├── tts/               OnnxTtsEngine (stub seams), HeuristicTextAnalyzer, DefaultVoices
+│   ├── tts/               OnnxTtsEngine (sherpa-onnx), TtsPlaybackService, HeuristicTextAnalyzer, DefaultVoices
 │   ├── mapper/            Entity <-> domain
 │   └── repository/        Repository implementations
 └── presentation/         Jetpack Compose (Material 3)
@@ -42,11 +42,14 @@ com.TopMob.bookmt
   addresses any position (progress, bookmarks, TTS cursor).
 - **Extensible parsing:** add a format by implementing `BookParser` and binding it `@IntoSet` in
   `ParserModule`; `BookParserFactory` dispatches automatically. PDF is a structural placeholder.
-- **Unfinished multi-voice TTS:** `TextAnalyzer` tags prose with `SpeakerRole`
-  (NARRATOR / MALE / FEMALE / UNKNOWN); `TtsEngine` consumes the tagged stream and switches
-  `VoiceProfile`s. Native synthesis and playback are not implemented. `OnnxTtsEngine.prepare`
-  explicitly reports this limitation rather than simulating silent playback. ONNX is not shipped
-  until a working engine and voice assets are integrated.
+- **Offline neural TTS:** bundled Supertonic 3 INT8 via sherpa-onnx, Russian F1/M1.
+  `ReadAloudUseCase` lazily feeds bounded passages with absolute offsets. One passage
+  is synthesized ahead while `AudioTrack` plays; pause retains the session, completion
+  releases it. `TtsPlaybackService` owns the foreground notification, media session
+  and wake lock. The reader ViewModel owns the reading job; leaving the reader stops it.
+  No Android system TTS, runtime downloads or Internet permission. The role-analysis
+  interface remains extensible, but the selected voice currently reads every role.
+  See `OFFLINE_TTS.md` for model preparation, licensing and validation.
 
 ## Tech stack
 

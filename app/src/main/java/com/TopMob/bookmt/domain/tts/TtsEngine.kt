@@ -4,6 +4,7 @@ import com.TopMob.bookmt.domain.model.TextSegment
 import com.TopMob.bookmt.domain.model.VoiceAssignment
 import com.TopMob.bookmt.domain.model.VoiceProfile
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Engine abstraction over an ONNX-backed neural TTS runtime (e.g. sherpa-onnx running Piper `.onnx`
@@ -31,6 +32,10 @@ interface TtsEngine {
      * spoken segment are published via [state].
      */
     suspend fun speak(segments: List<TextSegment>)
+
+    suspend fun speak(segments: Flow<TextSegment>) {
+        segments.collect { speak(listOf(it)) }
+    }
 
     fun pause()
     fun resume()

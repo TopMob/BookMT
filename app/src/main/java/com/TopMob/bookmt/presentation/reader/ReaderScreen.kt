@@ -84,6 +84,33 @@ fun ReaderScreen(
     var selection by remember { mutableStateOf<ReaderSelection?>(null) }
     var editing by remember { mutableStateOf<Bookmark?>(null) }
     val context = LocalContext.current
+    var showTtsLicense by remember { mutableStateOf(false) }
+    var startAfterLicense by remember { mutableStateOf(false) }
+    var requestedNotification by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val notificationPermission = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { viewModel.onPlayTts() }
+    fun startSpeech() {
+        if (android.os.Build.VERSION.SDK_INT >= 33 && !requestedNotification &&
+            androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
+            != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestedNotification = true
+            notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        } else viewModel.onPlayTts()
+    }
+    LaunchedEffect(state.settings.ttsLicenseAccepted, startAfterLicense) {
+        if (state.settings.ttsLicenseAccepted && startAfterLicense) {
+            startAfterLicense = false
+            startSpeech()
+        }
+    }
+    if (showTtsLicense) com.TopMob.bookmt.presentation.settings.TtsLicenseDialog(
+        onDismiss = { showTtsLicense = false },
+        onAccept = {
+            viewModel.onUpdateSettings { it.copy(ttsLicenseAccepted = true) }
+            showTtsLicense = false
+            startAfterLicense = true
+        })
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(state.autoPaging, state.showControls, state.overlay, selection, editing, state.currentPage, state.settings.autoPageSeconds) {
         if (state.autoPaging && !state.showControls && state.overlay == ReaderOverlay.NONE && selection == null && editing == null) {
@@ -182,9 +209,9 @@ fun ReaderScreen(
                 onAddBookmark = viewModel::onAddBookmarkAtCurrentPage,
                 onPlayPauseTts = {
                     when (state.tts.status) {
-                        TtsStatus.PLAYING -> viewModel.onPauseTts()
+                        TtsStatus.PLAYING, TtsStatus.PREPARING -> viewModel.onPauseTts()
                         TtsStatus.PAUSED -> viewModel.onResumeTts()
-                        else -> viewModel.onPlayTts()
+                        else -> if (state.settings.ttsLicenseAccepted) startSpeech() else { showTtsLicense = true }
                     }
                 },
                 onStopTts = viewModel::onStopTts,

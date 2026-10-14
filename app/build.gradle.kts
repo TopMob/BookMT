@@ -46,6 +46,9 @@ android {
         buildConfig = true
     }
 
+    sourceSets["main"].assets.srcDir(rootProject.file(".tts-cache/assets"))
+    androidResources { noCompress += listOf("onnx", "bin") }
+
     // Both UI languages must be installed for the in-app language switcher.
     bundle {
         language {
@@ -74,6 +77,7 @@ ksp {
 }
 
 dependencies {
+    implementation(files(rootProject.file(".tts-cache/sherpa-onnx-1.13.8.aar")))
     // AndroidX core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
@@ -131,3 +135,16 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
+
+val verifyBundledTts by tasks.registering {
+    doLast {
+        val model = rootProject.file(".tts-cache/assets/tts/supertonic-3")
+        val required = listOf(".ready", "duration_predictor.int8.onnx", "text_encoder.int8.onnx",
+            "vector_estimator.int8.onnx", "vocoder.int8.onnx", "tts.json", "voice.bin", "unicode_indexer.bin")
+        check(required.all { model.resolve(it).isFile && model.resolve(it).length() > 0 } &&
+            rootProject.file(".tts-cache/sherpa-onnx-1.13.8.aar").isFile) {
+            "Bundled voices missing. Run: python tools/prepare_tts.py (development only)."
+        }
+    }
+}
+tasks.named("preBuild").configure { dependsOn(verifyBundledTts) }

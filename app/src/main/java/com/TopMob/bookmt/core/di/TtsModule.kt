@@ -1,5 +1,8 @@
 package com.TopMob.bookmt.core.di
 
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+
 import com.TopMob.bookmt.core.common.DispatcherProvider
 import com.TopMob.bookmt.data.tts.HeuristicTextAnalyzer
 import com.TopMob.bookmt.data.tts.OnnxTtsEngine
@@ -22,5 +25,5 @@ object TtsModule {
 
     @Provides
     @Singleton
-    fun provideTtsEngine(dispatchers: DispatcherProvider): TtsEngine = OnnxTtsEngine(dispatchers)
+    fun provideTtsEngine(@ApplicationContext context: Context, dispatchers: DispatcherProvider): TtsEngine = OnnxTtsEngine(context, dispatchers)
 }

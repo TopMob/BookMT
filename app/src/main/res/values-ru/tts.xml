@@ -1,0 +1,17 @@
+<resources>
+    <string name="tts_title">Офлайн-озвучка</string>
+    <string name="tts_description">Русская нейросетевая речь · Supertonic 3. Оба голоса уже установлены. Звук создаётся на устройстве.</string>
+    <string name="tts_female">Женский · F1</string>
+    <string name="tts_male">Мужской · M1</string>
+    <string name="tts_speed">Скорость речи: %.2f×</string>
+    <string name="tts_settings_hint">Голос и скорость применятся после остановки и нового запуска. Озвучка начинается с текущего места и продолжается при выключенном экране.</string>
+    <string name="tts_license">Условия голосовой модели</string>
+    <string name="tts_license_intro">Supertonic 3 © 2026 Supertone Inc. Это синтезированная речь. Использование встроенной модели регулируется лицензией OpenRAIL-M ниже, включая ограничения пункта 5 и приложения A. Нажимая «Принимаю», вы соглашаетесь с этими условиями. Для чтения без озвучки согласие не требуется. Никакие данные никуда не отправляются.</string>
+    <string name="tts_accept">Принимаю</string>
+    <string name="tts_cancel">Отмена</string>
+    <string name="tts_pause">Приостановить озвучку</string>
+    <string name="tts_resume">Продолжить озвучку</string>
+    <string name="tts_paused">Озвучка на паузе</string>
+    <string name="tts_preparing">Подготовка речи на устройстве…</string>
+    <string name="tts_playing">Чтение вслух · синтезированная речь</string>
+</resources>

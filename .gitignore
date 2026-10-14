@@ -60,3 +60,6 @@ obj/
 
 # Mac
 .DS_Store
+
+# Pinned development-only TTS downloads and generated APK assets
+.tts-cache/

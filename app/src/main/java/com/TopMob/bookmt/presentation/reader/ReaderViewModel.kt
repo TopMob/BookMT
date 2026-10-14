@@ -332,11 +332,15 @@ class ReaderViewModel @Inject constructor(
 
     fun onPlayTts() {
         val content = _uiState.value.content ?: return
+        if (!_uiState.value.settings.ttsLicenseAccepted) return
         if (ttsJob?.isActive == true) return
+        stopAutoPaging()
+        val settings = _uiState.value.settings
+        val offset = _uiState.value.currentOffset
         ttsJob = viewModelScope.launch {
             try {
-                readAloud.prepare(DefaultVoices.assignment)
-                readAloud.start(content, _uiState.value.currentOffset)
+                readAloud.prepare(DefaultVoices.forSettings(settings))
+                readAloud.start(content, offset)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -357,7 +361,7 @@ class ReaderViewModel @Inject constructor(
     override fun onCleared() {
         onReadingPaused()
         super.onCleared()
-        readAloud.stop()
+        readAloud.release()
     }
 
     private companion object {

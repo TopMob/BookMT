@@ -1,5 +1,7 @@
 package com.TopMob.bookmt.presentation.reader.components
 
+import androidx.compose.foundation.layout.size
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -196,17 +198,17 @@ fun ReaderBottomBar(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (activeVoiceId != null && ttsStatus == TtsStatus.PLAYING) {
                             Text(
-                                text = activeVoiceId,
+                                text = com.TopMob.bookmt.data.tts.DefaultVoices.name(activeVoiceId),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(end = 8.dp),
                             )
                         }
                         IconButton(onClick = onPlayPauseTts) {
-                            if (ttsStatus == TtsStatus.PLAYING) {
+                            if (ttsStatus == TtsStatus.PLAYING || ttsStatus == TtsStatus.PREPARING) {
                                 Icon(
                                     Icons.Filled.Pause,
-                                    contentDescription = stringResource(R.string.reader_stop_tts),
+                                    contentDescription = stringResource(R.string.tts_pause),
                                 )
                             } else {
                                 Icon(
@@ -215,7 +217,10 @@ fun ReaderBottomBar(
                                 )
                             }
                         }
-                        if (ttsStatus == TtsStatus.PLAYING || ttsStatus == TtsStatus.PAUSED) {
+                        if (ttsStatus == TtsStatus.PREPARING) {
+                            androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        }
+                        if (ttsStatus == TtsStatus.PLAYING || ttsStatus == TtsStatus.PAUSED || ttsStatus == TtsStatus.PREPARING) {
                             IconButton(onClick = onStopTts) {
                                 Icon(
                                     Icons.Filled.Stop,

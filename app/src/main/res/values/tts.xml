@@ -1,0 +1,17 @@
+<resources>
+    <string name="tts_title">Offline read aloud</string>
+    <string name="tts_description">Russian neural speech · Supertonic 3. Both voices are included. Audio is generated on your device.</string>
+    <string name="tts_female">Female · F1</string>
+    <string name="tts_male">Male · M1</string>
+    <string name="tts_speed">Speech speed: %.2f×</string>
+    <string name="tts_settings_hint">Voice and speed apply when you stop and restart read aloud. Starts at your current reading position; continues with the screen off.</string>
+    <string name="tts_license">Voice model terms</string>
+    <string name="tts_license_intro">Supertonic 3 © 2026 Supertone Inc. This is machine-generated speech. Using the bundled model is subject to the OpenRAIL-M license below, including the use restrictions in paragraph 5 and Attachment A. By accepting, you agree to these terms. Reading without speech does not require acceptance. No information is sent anywhere.</string>
+    <string name="tts_accept">Accept</string>
+    <string name="tts_cancel">Cancel</string>
+    <string name="tts_pause">Pause speech</string>
+    <string name="tts_resume">Resume speech</string>
+    <string name="tts_paused">Speech paused</string>
+    <string name="tts_preparing">Preparing speech on this device…</string>
+    <string name="tts_playing">Reading aloud · generated speech</string>
+</resources>

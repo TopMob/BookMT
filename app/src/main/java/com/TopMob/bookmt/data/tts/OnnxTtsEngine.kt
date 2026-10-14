@@ -1,169 +1,211 @@
 package com.TopMob.bookmt.data.tts
 
+import android.content.*
+import android.media.*
+import android.os.Build
+import androidx.core.content.ContextCompat
 import com.TopMob.bookmt.core.common.DispatcherProvider
-import com.TopMob.bookmt.domain.model.TextSegment
-import com.TopMob.bookmt.domain.model.VoiceAssignment
-import com.TopMob.bookmt.domain.model.VoiceProfile
-import com.TopMob.bookmt.domain.tts.TtsEngine
-import com.TopMob.bookmt.domain.tts.TtsPlaybackState
-import com.TopMob.bookmt.domain.tts.TtsStatus
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.withContext
+import com.TopMob.bookmt.domain.model.*
+import com.TopMob.bookmt.domain.tts.*
+import com.k2fsa.sherpa.onnx.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
-/**
- * ONNX-runtime-backed [TtsEngine] (designed for sherpa-onnx / Piper `.onnx` voices).
- *
- * This baseline wires up the full control flow — voice-pool management, on-the-fly voice switching
- * as [TextSegment.role] changes, playback state, pause/resume/stop — with the heavy native pieces
- * stubbed at clearly marked seams ([synthesize], [playPcm], voice-session loading). Dropping in
- * sherpa-onnx means filling those three seams; nothing upstream changes.
- *
- * Integration notes for the synthesis seam:
- *  - Create one `ai.onnxruntime.OrtEnvironment` for the process.
- *  - Lazily build an `OrtSession` per [VoiceProfile.modelAssetPath]; cache in [voiceSessions].
- *  - For each segment: phonemize text -> token ids (tokens.txt), run the session, receive a float
- *    PCM array, and stream it to an `AudioTrack` configured at [VoiceProfile.sampleRate].
- */
-class OnnxTtsEngine(
-    private val dispatchers: DispatcherProvider,
-) : TtsEngine {
-
-    private val _state = MutableStateFlow(TtsPlaybackState())
-    override val state: StateFlow<TtsPlaybackState> = _state.asStateFlow()
-
+/** Bundled neural synthesis. Never delegates to Android TTS or downloads models. */
+class OnnxTtsEngine(private val context: Context, private val dispatchers: DispatcherProvider) : TtsEngine {
+    private val mutableState = MutableStateFlow(TtsPlaybackState())
+    override val state = mutableState.asStateFlow()
+    private val nativeMutex = Mutex()
+    private val cleanupScope = CoroutineScope(SupervisorJob() + dispatchers.default)
+    private var runtime: OfflineTts? = null
+    @Volatile private var runtimeGeneration = 0L
     private var assignment: VoiceAssignment? = null
-
-    /** Cache of loaded native voice sessions keyed by [VoiceProfile.id] (opaque handles for now). */
-    private val voiceSessions = mutableMapOf<String, Any>()
-
-    // Cooperative playback control flags, checked between/within segments.
+    @Volatile private var stopped = true
     @Volatile private var paused = false
-    @Volatile private var stopped = false
-
-    override suspend fun prepare(assignment: VoiceAssignment) {
-        val message = "Read aloud is not available: voice models and audio synthesis are not installed."
-        _state.value = TtsPlaybackState(status = TtsStatus.ERROR, errorMessage = message)
-        throw UnsupportedOperationException(message)
+    private val audioLock = Any()
+    private var track: AudioTrack? = null
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private val attributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
+    private val focusListener = AudioManager.OnAudioFocusChangeListener { if (it != AudioManager.AUDIOFOCUS_GAIN) pause() }
+    private var focusRequest: AudioFocusRequest? = null
+    private var receiverRegistered = false
+    private val noisyReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) { pause() }
     }
 
-    override suspend fun availableVoices(): List<VoiceProfile> =
-        assignment?.let {
-            listOfNotNull(it.narrator, it.maleCharacter, it.femaleCharacter, it.unknownCharacter)
-                .distinctBy { v -> v.id }
-        } ?: emptyList()
+    override suspend fun availableVoices() = listOf(DefaultVoices.female, DefaultVoices.male)
 
-    override suspend fun speak(segments: List<TextSegment>) {
-        val assignment = this.assignment ?: run {
-            _state.value = TtsPlaybackState(status = TtsStatus.ERROR, errorMessage = "Engine not prepared")
-            return
+    override suspend fun prepare(assignment: VoiceAssignment) = withContext(dispatchers.default) {
+        nativeMutex.withLock {
+            runtimeGeneration++
+            stopped = false
+            paused = false
+            this@OnnxTtsEngine.assignment = assignment
+            mutableState.value = TtsPlaybackState(status = TtsStatus.PREPARING, activeVoiceId = assignment.narrator.id)
+            try {
+                ContextCompat.startForegroundService(context, Intent(context, TtsPlaybackService::class.java))
+                withTimeout(10_000) { TtsPlaybackService.ready.first { it } }
+                ensureRunning()
+                if (runtime == null) runtime = createBundledRuntime(context)
+                ensureRunning()
+            } catch (e: Throwable) {
+                runtime?.release()
+                runtime = null
+                fail(e)
+                throw e
+            }
         }
-        stopped = false
-        paused = false
+    }
 
-        withContext(dispatchers.default) {
-            var activeVoiceId: String? = null
-            for (segment in segments) {
-                if (stopped) break
-                awaitWhilePaused()
-                if (stopped) break
+    override suspend fun speak(segments: List<TextSegment>) = speak(segments.asFlow())
 
-                // ---- On-the-fly voice switching ----
-                val voice = assignment.voiceFor(segment.role)
-                if (voice.id != activeVoiceId) {
-                    loadVoice(voice)
-                    activeVoiceId = voice.id
+    override suspend fun speak(segments: Flow<TextSegment>) = withContext(dispatchers.default) {
+        nativeMutex.withLock {
+            try {
+                ensureRunning()
+                check(requestFocus()) { "Не удалось получить доступ к звуку. Повторите запуск озвучки." }
+                ContextCompat.registerReceiver(context, noisyReceiver,
+                    IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY), ContextCompat.RECEIVER_NOT_EXPORTED)
+                receiverRegistered = true
+                val tts = checkNotNull(runtime) { "Голоса ещё не подготовлены" }
+                val voices = checkNotNull(assignment)
+                // Synthesize one passage ahead while AudioTrack plays the current one.
+                // A rendezvous buffer bounds memory and keeps all native calls on one producer.
+                segments.filter { it.text.any(Char::isLetterOrDigit) }.map { segment ->
+                    awaitUnpaused()
+                    val voice = voices.voiceFor(segment.role)
+                    val job = currentCoroutineContext()[Job]!!
+                    val audio = tts.generateWithConfigAndCallback(segment.text,
+                        GenerationConfig(sid = voice.speakerId, speed = voice.speed,
+                            numSteps = 8, extra = mapOf("lang" to "ru"))) {
+                        if (stopped || !job.isActive) 0 else 1
+                    }
+                    ensureRunning()
+                    check(audio.samples.isNotEmpty()) { "Модель не смогла озвучить фрагмент" }
+                    segment to audio
+                }.buffer(0).flowOn(dispatchers.default).collect { (segment, audio) ->
+                    awaitUnpaused()
+                    mutableState.update { it.copy(activeVoiceId = voices.voiceFor(segment.role).id,
+                        currentSegment = segment, currentOffset = segment.startOffset) }
+                    play(audio.samples, audio.sampleRate)
+                    ensureRunning()
+                    mutableState.update { it.copy(status = if (paused) TtsStatus.PAUSED else TtsStatus.PREPARING) }
                 }
-
-                _state.value = _state.value.copy(
-                    status = TtsStatus.PLAYING,
-                    activeVoiceId = voice.id,
-                    currentSegment = segment,
-                    currentOffset = segment.startOffset,
-                    errorMessage = null,
-                )
-
-                val pcm = synthesize(segment, voice)
-                playPcm(pcm, voice.sampleRate)
-            }
-
-            if (!stopped) {
-                _state.value = _state.value.copy(status = TtsStatus.IDLE, currentSegment = null)
+                mutableState.update { it.copy(status = TtsStatus.IDLE, currentSegment = null) }
+            } catch (e: Throwable) { fail(e); throw e }
+            finally {
+                synchronized(audioLock) { track?.release(); track = null }
+                if (receiverRegistered) { context.unregisterReceiver(noisyReceiver); receiverRegistered = false }
+                abandonFocus()
+                runtime?.release()
+                runtime = null
             }
         }
     }
 
+    private suspend fun play(samples: FloatArray, sampleRate: Int) {
+        val bufferBytes = maxOf(AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO,
+            AudioFormat.ENCODING_PCM_FLOAT), sampleRate / 5 * 4)
+        val output = AudioTrack.Builder().setAudioAttributes(attributes)
+            .setAudioFormat(AudioFormat.Builder().setSampleRate(sampleRate)
+                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).setEncoding(AudioFormat.ENCODING_PCM_FLOAT).build())
+            .setTransferMode(AudioTrack.MODE_STREAM).setBufferSizeInBytes(bufferBytes).build()
+        synchronized(audioLock) { track = output }
+        try {
+            check(output.state == AudioTrack.STATE_INITIALIZED) { "Не удалось открыть аудиовыход" }
+            awaitUnpaused()
+            synchronized(audioLock) { if (!paused && !stopped) output.play() }
+            mutableState.update { it.copy(status = if (paused) TtsStatus.PAUSED else TtsStatus.PLAYING) }
+            var written = 0
+            while (written < samples.size) {
+                awaitUnpaused()
+                val count = synchronized(audioLock) {
+                    if (paused || stopped) 0 else output.write(samples, written,
+                        minOf(4096, samples.size - written), AudioTrack.WRITE_NON_BLOCKING)
+                }
+                check(count >= 0) { "Ошибка воспроизведения: $count" }
+                written += count
+                if (count == 0) delay(10)
+            }
+            // Drain the final buffer so sentence endings are not clipped.
+            while ((output.playbackHeadPosition.toLong() and 0xffffffffL) < written.toLong()) {
+                awaitUnpaused()
+                delay(20)
+            }
+        } finally { synchronized(audioLock) { track = null; output.release() } }
+    }
+
+    private suspend fun ensureRunning() {
+        currentCoroutineContext().ensureActive()
+        if (stopped) throw CancellationException("Read aloud stopped")
+    }
+    private suspend fun awaitUnpaused() {
+        ensureRunning()
+        while (paused) { delay(50); ensureRunning() }
+    }
     override fun pause() {
+        if (stopped || state.value.status !in setOf(TtsStatus.PLAYING, TtsStatus.PREPARING)) return
         paused = true
-        _state.value = _state.value.copy(status = TtsStatus.PAUSED)
+        synchronized(audioLock) { track?.pause() }
+        mutableState.update { it.copy(status = TtsStatus.PAUSED) }
     }
-
     override fun resume() {
+        if (stopped || !paused || !requestFocus()) return
         paused = false
-        _state.value = _state.value.copy(status = TtsStatus.PLAYING)
+        synchronized(audioLock) { track?.play() }
+        mutableState.update { it.copy(status = if (track == null) TtsStatus.PREPARING else TtsStatus.PLAYING) }
     }
-
     override fun stop() {
         stopped = true
         paused = false
-        _state.value = _state.value.copy(status = TtsStatus.STOPPED, currentSegment = null)
+        synchronized(audioLock) { track?.pause(); track?.flush() }
+        mutableState.update { it.copy(status = TtsStatus.STOPPED, currentSegment = null) }
     }
-
     override fun release() {
         stop()
-        voiceSessions.clear()
-        // TODO(onnx): close OrtSession handles and the shared OrtEnvironment here.
-    }
-
-    private suspend fun awaitWhilePaused() {
-        while (paused && !stopped) delay(POLL_INTERVAL_MS)
-    }
-
-    /**
-     * Loads (or returns cached) native session for [voice].
-     *
-     * SEAM: replace the placeholder handle with an actual `OrtSession` created from the model bytes.
-     */
-    private fun loadVoice(voice: VoiceProfile) {
-        voiceSessions.getOrPut(voice.id) { VoiceSessionHandle(voice.id) }
-    }
-
-    /**
-     * SEAM: run ONNX inference for [segment] using [voice]'s session and return PCM samples.
-     * The stub returns an empty buffer and reports timing so the rest of the pipeline is exercised.
-     */
-    private fun synthesize(segment: TextSegment, voice: VoiceProfile): FloatArray {
-        // Real impl: tokenize -> OrtSession.run(...) -> read output tensor -> FloatArray PCM.
-        return FloatArray(0)
-    }
-
-    /**
-     * SEAM: write PCM to an `AudioTrack`. The stub approximates real playback duration from the
-     * text length so playback state, highlighting, and pause/stop can be observed end-to-end.
-     */
-    private suspend fun playPcm(pcm: FloatArray, sampleRate: Int) {
-        val approxMs = (synthesizedDurationMs())
-        var elapsed = 0L
-        while (elapsed < approxMs && !stopped) {
-            awaitWhilePaused()
-            delay(POLL_INTERVAL_MS)
-            elapsed += POLL_INTERVAL_MS
+        val generation = runtimeGeneration
+        cleanupScope.launch {
+            nativeMutex.withLock {
+                // A new reader may have started before asynchronous cleanup acquires the lock.
+                if (generation == runtimeGeneration) { runtime?.release(); runtime = null }
+            }
         }
     }
-
-    private fun synthesizedDurationMs(): Long {
-        val segment = _state.value.currentSegment ?: return 0L
-        // ~15 characters per second of speech as a rough placeholder pacing.
-        return (segment.text.length * 1000L / CHARS_PER_SECOND).coerceAtLeast(POLL_INTERVAL_MS)
+    private fun fail(error: Throwable) {
+        stopped = true
+        mutableState.update { it.copy(status = if (error is CancellationException) TtsStatus.STOPPED else TtsStatus.ERROR,
+            errorMessage = if (error is CancellationException) null else error.message ?: "Ошибка офлайн-озвучки",
+            currentSegment = null) }
     }
-
-    /** Opaque placeholder standing in for a native `OrtSession`. */
-    private data class VoiceSessionHandle(val voiceId: String)
-
-    private companion object {
-        const val POLL_INTERVAL_MS = 50L
-        const val CHARS_PER_SECOND = 15
+    @Suppress("DEPRECATION")
+    private fun requestFocus(): Boolean {
+        val result = if (Build.VERSION.SDK_INT >= 26) {
+            val request = focusRequest ?: AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(attributes).setWillPauseWhenDucked(true)
+                .setOnAudioFocusChangeListener(focusListener, android.os.Handler(android.os.Looper.getMainLooper()))
+                .build().also { focusRequest = it }
+            audioManager.requestAudioFocus(request)
+        } else audioManager.requestAudioFocus(focusListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
+        return result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    }
+    @Suppress("DEPRECATION")
+    private fun abandonFocus() {
+        if (Build.VERSION.SDK_INT >= 26) focusRequest?.let(audioManager::abandonAudioFocusRequest)
+        else audioManager.abandonAudioFocus(focusListener)
+    }
+    companion object {
+        /** Shared with the native smoke test to exercise the exact packaged configuration. */
+        fun createBundledRuntime(context: Context): OfflineTts {
+            val base = "tts/supertonic-3"
+            return OfflineTts(context.assets, OfflineTtsConfig(model = OfflineTtsModelConfig(
+                supertonic = OfflineTtsSupertonicModelConfig(
+                    durationPredictor = "$base/duration_predictor.int8.onnx", textEncoder = "$base/text_encoder.int8.onnx",
+                    vectorEstimator = "$base/vector_estimator.int8.onnx", vocoder = "$base/vocoder.int8.onnx",
+                    ttsJson = "$base/tts.json", unicodeIndexer = "$base/unicode_indexer.bin", voiceStyle = "$base/voice.bin"),
+                numThreads = 2, provider = "cpu")))
+        }
     }
 }

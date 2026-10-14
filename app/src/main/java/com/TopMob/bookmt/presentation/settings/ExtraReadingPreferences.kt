@@ -61,6 +61,7 @@ fun ExtraReadingPreferences(settings: ReaderSettings, update: ((ReaderSettings) 
         }
     }
     Column(Modifier.padding(horizontal = 20.dp)) {
+        TtsPreferences(settings, update)
         PreferenceToggle(stringResource(R.string.reader_fullscreen), settings.fullScreen) { v -> update { it.copy(fullScreen = v) } }
         PreferenceToggle(stringResource(R.string.reader_volume_keys), settings.volumeKeysEnabled) { v -> update { it.copy(volumeKeysEnabled = v) } }
         PreferenceToggle(stringResource(R.string.reader_keep_awake), settings.keepScreenOn) { v -> update { it.copy(keepScreenOn = v) } }

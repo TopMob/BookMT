@@ -26,6 +26,9 @@ data class ReaderSettings(
     val volumeKeysEnabled: Boolean = true,
     val orientation: ReaderOrientation = ReaderOrientation.SYSTEM,
     val autoPageSeconds: Int = 30,
+    val ttsMaleVoice: Boolean = false,
+    val ttsSpeed: Float = 1f,
+    val ttsLicenseAccepted: Boolean = false,
 ) {
     companion object {
         const val MIN_FONT_SIZE_SP = 10f
@@ -43,6 +46,7 @@ data class ReaderSettings(
             horizontalMarginDp = horizontalMarginDp.coerceIn(0, 64),
             verticalMarginDp = verticalMarginDp.coerceIn(0, 64),
             autoPageSeconds = autoPageSeconds.coerceIn(5, 180),
+            ttsSpeed = ttsSpeed.takeIf { it.isFinite() }?.coerceIn(0.75f, 1.5f) ?: 1f,
             brightnessLevel = brightnessLevel.takeIf { it.isFinite() }?.coerceIn(0.01f, 1f) ?: defaults.brightnessLevel,
         )
     }

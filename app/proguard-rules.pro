@@ -19,3 +19,6 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# JNI reads these Kotlin configuration properties by name.
+-keep class com.k2fsa.sherpa.onnx.** { *; }

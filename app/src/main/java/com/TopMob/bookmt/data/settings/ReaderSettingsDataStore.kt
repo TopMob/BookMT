@@ -69,6 +69,9 @@ class ReaderSettingsDataStore(private val context: Context) {
             volumeKeysEnabled = this[Keys.VOLUME_KEYS] ?: defaults.volumeKeysEnabled,
             orientation = decodeEnum(this[Keys.ORIENTATION], ReaderOrientation.entries, defaults.orientation),
             autoPageSeconds = this[Keys.AUTO_PAGE_SECONDS] ?: defaults.autoPageSeconds,
+            ttsMaleVoice = this[Keys.TTS_MALE] ?: defaults.ttsMaleVoice,
+            ttsSpeed = this[Keys.TTS_SPEED] ?: defaults.ttsSpeed,
+            ttsLicenseAccepted = this[Keys.TTS_LICENSE] ?: defaults.ttsLicenseAccepted,
         ).sanitized()
     }
 
@@ -89,6 +92,9 @@ class ReaderSettingsDataStore(private val context: Context) {
         this[Keys.VOLUME_KEYS] = s.volumeKeysEnabled
         this[Keys.ORIENTATION] = s.orientation.name
         this[Keys.AUTO_PAGE_SECONDS] = s.autoPageSeconds
+        this[Keys.TTS_MALE] = s.ttsMaleVoice
+        this[Keys.TTS_SPEED] = s.ttsSpeed
+        this[Keys.TTS_LICENSE] = s.ttsLicenseAccepted
         val fontPath = s.customFontPath
         if (fontPath == null) this.remove(Keys.CUSTOM_FONT_PATH) else this[Keys.CUSTOM_FONT_PATH] = fontPath
     }
@@ -97,6 +103,9 @@ class ReaderSettingsDataStore(private val context: Context) {
         values.firstOrNull { it.name == name } ?: default
 
     private object Keys {
+        val TTS_MALE = booleanPreferencesKey("tts_male")
+        val TTS_SPEED = floatPreferencesKey("tts_speed")
+        val TTS_LICENSE = booleanPreferencesKey("supertonic_3_license_accepted")
         val FULL_SCREEN = booleanPreferencesKey("full_screen")
         val VOLUME_KEYS = booleanPreferencesKey("volume_keys")
         val ORIENTATION = stringPreferencesKey("orientation")
