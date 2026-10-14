@@ -35,6 +35,10 @@ class BookRepositoryImpl(
     private val storageDir: java.io.File? = null,
 ) : BookRepository {
 
+    private data class ContentKey(val uri: String, val bytes: Long, val modified: Long, val title: String, val format: BookFormat)
+    private data class CachedContent(val key: ContentKey, val content: BookContent)
+    @Volatile private var cachedContent: CachedContent? = null
+
     private val offlineMutex = kotlinx.coroutines.sync.Mutex()
 
     override fun observeBooks(): Flow<List<Book>> =
@@ -104,7 +108,14 @@ class BookRepositoryImpl(
                         IllegalStateException("No parser for ${book.format}"),
                     )
                 val local = prepareOffline(book)
+                val source = Uri.parse(local.uri)
+                val file = if (source.scheme == "file") source.path?.let { java.io.File(it) } else null
+                val key = file?.takeIf { it.isFile }?.let { ContentKey(local.uri, it.length(), it.lastModified(), book.title, book.format) }
+                cachedContent?.takeIf { key != null && it.key == key }?.let {
+                    return@withContext Resource.Success(it.content)
+                }
                 val content = openStream(local.uri).use { parser.parse(it, book.title) }
+                cachedContent = if (key != null && content.totalLength <= 4_000_000) CachedContent(key, content) else null
                 Resource.Success(content)
             } catch (t: Throwable) {
                 if (t is CancellationException) throw t
@@ -170,6 +181,7 @@ class BookRepositoryImpl(
     override suspend fun deleteBook(bookId: Long) {
         withContext(dispatchers.io) {
             val book = bookDao.getById(bookId)
+            if (cachedContent?.key?.uri == book?.uri) cachedContent = null
             bookDao.deleteById(bookId)
             val owned = storageDir?.canonicalFile
             if (book != null && owned != null && Uri.parse(book.uri).scheme == "file") {

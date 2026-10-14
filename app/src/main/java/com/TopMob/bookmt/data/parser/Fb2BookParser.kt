@@ -8,6 +8,9 @@ import com.TopMob.bookmt.domain.parser.BookMetadata
 import com.TopMob.bookmt.domain.parser.BookParseException
 import com.TopMob.bookmt.domain.parser.BookParser
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.CancellationException
 import org.xmlpull.v1.XmlPullParser
 import java.io.InputStream
 
@@ -51,7 +54,7 @@ class Fb2BookParser(
             )
         }
 
-    private fun parseInternal(input: InputStream, metadataOnly: Boolean): Parsed {
+    private suspend fun parseInternal(input: InputStream, metadataOnly: Boolean): Parsed {
         return try {
         val parser = Xml.newPullParser().apply {
             setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
@@ -88,7 +91,9 @@ class Fb2BookParser(
         }
 
         var event = parser.eventType
+        var events = 0
         while (event != XmlPullParser.END_DOCUMENT) {
+            if (++events % 256 == 0) currentCoroutineContext().ensureActive()
             when (event) {
                 XmlPullParser.START_TAG -> when (parser.name.lowercase()) {
                     "description" -> inDescription = true
@@ -115,13 +120,16 @@ class Fb2BookParser(
                             (pendingChapterTitle ?: "") + text
                         !metadataOnly && inBody && sectionDepth > 0 -> {
                             sectionText.append(text)
-                            fallbackBody.append(text)
+                            // A non-empty section is already emitted as a chapter; do not duplicate the book in memory.
                         }
                     }
                 }
 
                 XmlPullParser.END_TAG -> when (parser.name.lowercase()) {
-                    "description" -> inDescription = false
+                    "description" -> {
+                        inDescription = false
+                        if (metadataOnly) return Parsed(title.trim(), fullName(firstName, lastName), emptyList(), fallbackBody)
+                    }
                     "title-info" -> inTitleInfo = false
                     "author" -> inAuthor = false
                     "book-title", "first-name", "last-name" -> capturedTag = null
@@ -143,7 +151,8 @@ class Fb2BookParser(
         }
         flushSection()
         Parsed(title.trim(), fullName(firstName, lastName), chapters, fallbackBody)
-        } catch (t: Throwable) {
+        } catch (t: Exception) {
+            if (t is CancellationException) throw t
             throw BookParseException("Failed to parse FB2 file", t)
         }
     }

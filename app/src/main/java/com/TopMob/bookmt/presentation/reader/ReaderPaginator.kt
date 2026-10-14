@@ -11,19 +11,31 @@ object ReaderPaginator {
     fun paginate(
         content: BookContent,
         charBudget: Int = 4000,
+        adaptive: Boolean = false,
+        checkCancelled: () -> Unit = {},
         fit: ((String) -> Int)? = null,
     ): List<ReaderPage> {
         require(charBudget > 0)
         val pages = mutableListOf<ReaderPage>()
+        var window = if (adaptive && fit != null) minOf(2048, charBudget) else charBudget
         for (chapter in content.chapters) {
             var cursor = 0
             while (cursor < chapter.text.length) {
-                var end = minOf(cursor + charBudget, chapter.text.length)
-                // Avoid splitting surrogate pairs and prefer a word boundary.
-                if (end < chapter.text.length && chapter.text[end - 1].isHighSurrogate()) end--
-                if (end <= cursor) end = minOf(cursor + 2, chapter.text.length)
-                val candidate = chapter.text.substring(cursor, end)
-                val fitted = fit?.invoke(candidate)?.coerceIn(1, candidate.length) ?: candidate.length
+                checkCancelled()
+                var end: Int
+                var fitted: Int
+                while (true) {
+                    end = minOf(cursor + window, chapter.text.length)
+                    if (end < chapter.text.length && chapter.text[end - 1].isHighSurrogate()) end--
+                    if (end <= cursor) end = minOf(cursor + 2, chapter.text.length)
+                    val candidate = chapter.text.substring(cursor, end)
+                    fitted = fit?.invoke(candidate)?.coerceIn(1, candidate.length) ?: candidate.length
+                    // If the entire window fits, grow it before deciding where this page ends.
+                    if (!adaptive || fit == null || fitted < candidate.length || end == chapter.text.length || window >= charBudget) break
+                    window = (window * 2).coerceAtMost(charBudget)
+                    checkCancelled()
+                }
+                if (adaptive && fit != null) window = (fitted + fitted / 3 + 64).coerceIn(minOf(128, charBudget), charBudget)
                 end = cursor + fitted
                 if (end < chapter.text.length) {
                     val boundary = chapter.text.lastIndexOfAny(charArrayOf(' ', '\n', '\t'), end - 1)

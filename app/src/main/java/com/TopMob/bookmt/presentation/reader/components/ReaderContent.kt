@@ -28,6 +28,8 @@ import com.TopMob.bookmt.presentation.reader.ReaderPage
 import com.TopMob.bookmt.presentation.reader.ReaderPaginator
 import com.TopMob.bookmt.presentation.reader.ReaderTapZone
 import com.TopMob.bookmt.presentation.theme.ReaderColors
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -63,16 +65,25 @@ fun ReaderContent(
     BoxWithConstraints(modifier.fillMaxSize().background(colors.background)) {
         val width = with(density) { (maxWidth - (horizontalPadding * 2).dp).roundToPx() }.coerceAtLeast(1)
         val height = with(density) { (maxHeight - (verticalPadding * 2).dp).roundToPx() }.coerceAtLeast(1)
-        var pages by remember(content, textStyle, width, height) { mutableStateOf<List<ReaderPage>>(emptyList()) }
-        LaunchedEffect(content, textStyle, width, height) {
+        // Text color does not affect line wrapping or page boundaries.
+        val layoutStyle = remember(textStyle) { textStyle.copy(color = androidx.compose.ui.graphics.Color.Unspecified) }
+        var pages by remember(content, layoutStyle, width, height) { mutableStateOf<List<ReaderPage>>(emptyList()) }
+        LaunchedEffect(content, layoutStyle, width, height, density.density, density.fontScale) {
+            val cached = com.TopMob.bookmt.presentation.reader.ReaderPageCache.get(content, layoutStyle, width, height, density.density, density.fontScale)
+            if (cached != null) {
+                pages = cached
+                return@LaunchedEffect
+            }
             pages = withContext(Dispatchers.Default) {
-                ReaderPaginator.paginate(content, charBudget = 8000) { text ->
-                    val layout = measurer.measure(text, textStyle, constraints = Constraints(maxWidth = width))
+                val jobContext = currentCoroutineContext()
+                ReaderPaginator.paginate(content, charBudget = 8000, adaptive = true, checkCancelled = { jobContext.ensureActive() }) { text ->
+                    val layout = measurer.measure(text, layoutStyle, constraints = Constraints(maxWidth = width), skipCache = true)
                     var line = 0
                     while (line < layout.lineCount && layout.getLineBottom(line) <= height) line++
                     layout.getLineEnd((line - 1).coerceAtLeast(0), visibleEnd = false)
                 }
             }
+            com.TopMob.bookmt.presentation.reader.ReaderPageCache.put(content, layoutStyle, width, height, density.density, density.fontScale, pages)
         }
         if (pages.isEmpty()) {
             CircularProgressIndicator(Modifier.align(Alignment.Center))
