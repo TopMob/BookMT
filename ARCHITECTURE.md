@@ -1,5 +1,7 @@
 # BookMT — Architecture
 
+> Обязательное ограничение: полностью офлайн-приложение. Сеть, облако, телеметрия и удалённый анализ не входят в архитектуру. Будущая TTS — локальные модели и локальный синтез. См. `AGENTS.md` и `FEATURE_BASELINE.md`.
+
 An Android e-book reader. **Clean Architecture + MVVM**, single-module, organized by
 layer then feature.
 

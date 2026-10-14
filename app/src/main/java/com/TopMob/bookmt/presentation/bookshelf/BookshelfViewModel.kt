@@ -78,6 +78,10 @@ class BookshelfViewModel @Inject constructor(
         val failures = documentImport.import(uris).failures
         if (failures.isNotEmpty()) transientError.value = failures.joinToString("\n")
     }
+    fun onPrepareOffline() = viewModelScope.launch {
+        val failures = documentImport.prepareLibrary()
+        if (failures.isNotEmpty()) transientError.value = failures.joinToString("\n")
+    }
     fun onStatusFilter(status: com.TopMob.bookmt.domain.model.LibraryStatus) = query.update { it.copy(status = status) }
     fun onFormatFilter(format: com.TopMob.bookmt.domain.model.BookFormat?) = query.update { it.copy(format = format) }
     fun onReverseSort() = query.update { it.copy(ascending = !it.ascending) }

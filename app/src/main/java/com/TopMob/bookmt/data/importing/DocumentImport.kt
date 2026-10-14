@@ -11,6 +11,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -22,10 +23,26 @@ data class ImportBatch(val bookIds: List<Long>, val failures: List<String>)
 data class ImportProgress(val completed: Int, val total: Int)
 
 @Singleton
-class DocumentImport @Inject constructor(@ApplicationContext private val context: Context, private val importBook: ImportBookUseCase) {
+class DocumentImport @Inject constructor(@ApplicationContext private val context: Context, private val importBook: ImportBookUseCase,
+    private val books: com.TopMob.bookmt.domain.repository.BookRepository) {
     private val mutex = Mutex()
     private val current = MutableStateFlow<ImportProgress?>(null)
     val progress = current.asStateFlow()
+
+    suspend fun prepareLibrary(): List<String> = mutex.withLock {
+        val library = books.observeBooks().first()
+        val failures = mutableListOf<String>()
+        try {
+            library.forEachIndexed { index, book ->
+                current.value = ImportProgress(index, library.size)
+                try { books.prepareOffline(book) }
+                catch (e: CancellationException) { throw e }
+                catch (e: Exception) { failures += "${book.title}: ${e.message}" }
+                current.value = ImportProgress(index + 1, library.size)
+            }
+        } finally { current.value = null }
+        failures
+    }
 
     suspend fun import(uris: List<Uri>): ImportBatch = mutex.withLock {
         withContext(Dispatchers.IO) {

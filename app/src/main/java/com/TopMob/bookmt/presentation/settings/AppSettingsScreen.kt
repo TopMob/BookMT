@@ -80,10 +80,10 @@ fun AppSettingsScreen(
 
     // Export: write a ZIP to a user-chosen location. Import: read one and restart to reload data.
     val exportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/zip"),
+        com.TopMob.bookmt.presentation.util.LocalCreateDocument("application/zip"),
     ) { uri -> if (uri != null) viewModel.onExportBackup(uri) }
     val importLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(),
+        com.TopMob.bookmt.presentation.util.LocalOpenDocument(),
     ) { uri -> if (uri != null) viewModel.onImportBackup(uri) }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {

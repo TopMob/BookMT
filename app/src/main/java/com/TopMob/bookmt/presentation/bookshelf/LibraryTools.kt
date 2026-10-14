@@ -36,6 +36,10 @@ fun LibraryToolsDialog(state: BookshelfUiState, model: BookshelfViewModel, onDis
             TextButton(onClick = model::onReverseSort) {
                 Text(stringResource(if (state.query.ascending) R.string.library_ascending else R.string.library_descending))
             }
+            TextButton(enabled = state.allBooks.isNotEmpty(), onClick = { model.onPrepareOffline(); onDismiss() }) {
+                Text(stringResource(R.string.offline_prepare_library))
+            }
+            Text(stringResource(R.string.offline_prepare_hint), style = MaterialTheme.typography.bodySmall)
             HorizontalDivider()
             Text(stringResource(R.string.library_statistics), style = MaterialTheme.typography.titleMedium)
             val books = state.allBooks

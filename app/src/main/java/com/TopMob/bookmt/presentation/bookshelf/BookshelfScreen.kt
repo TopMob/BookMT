@@ -119,7 +119,7 @@ fun BookshelfScreen(
     }
 
     val importProgress by viewModel.importProgress.collectAsStateWithLifecycle()
-    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+    val importLauncher = rememberLauncherForActivityResult(com.TopMob.bookmt.presentation.util.LocalOpenMultipleDocuments()) { uris ->
         viewModel.onImportDocuments(uris)
     }
     var showLibraryTools by remember { mutableStateOf(false) }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="offline_notes_search">Поиск по книгам, цитатам и заметкам</string>
+    <string name="offline_export_notes">Сохранить показанные заметки в файл</string>
+    <string name="offline_notes_exported">Заметки сохранены</string>
+    <string name="offline_notes_count">Найдено: %1$d</string>
+    <string name="offline_delete_note">Удалить отметку?</string>
+    <string name="offline_prepare_library">Подготовить всю библиотеку офлайн</string>
+    <string name="offline_prepare_hint">Скопирует старые книги внутрь приложения. Исходные файлы должны быть доступны до завершения операции.</string>
+</resources>

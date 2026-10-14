@@ -29,7 +29,7 @@ fun ExtraReadingPreferences(settings: ReaderSettings, update: ((ReaderSettings) 
     val scope = rememberCoroutineScope()
     var error by remember { mutableStateOf<String?>(null) }
     var importing by remember { mutableStateOf(false) }
-    val fontPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    val fontPicker = rememberLauncherForActivityResult(com.TopMob.bookmt.presentation.util.LocalOpenDocument()) { uri ->
         if (uri != null) scope.launch {
             importing = true
             try {

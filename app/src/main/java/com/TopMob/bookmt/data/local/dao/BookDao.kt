@@ -26,6 +26,9 @@ interface BookDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(book: BookEntity): Long
 
+    @Query("UPDATE books SET uri = :uri, file_size = :size WHERE id = :bookId")
+    suspend fun updateSource(bookId: Long, uri: String, size: Long)
+
     @Update
     suspend fun update(book: BookEntity)
 

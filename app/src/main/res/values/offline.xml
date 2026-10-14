@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="offline_notes_search">Search books, quotes and notes</string>
+    <string name="offline_export_notes">Export displayed notes to a file</string>
+    <string name="offline_notes_exported">Notes saved</string>
+    <string name="offline_notes_count">Found: %1$d</string>
+    <string name="offline_delete_note">Delete annotation?</string>
+    <string name="offline_prepare_library">Make all books available offline</string>
+    <string name="offline_prepare_hint">Copies legacy book sources into the app. Keep the source files accessible until this operation completes.</string>
+</resources>

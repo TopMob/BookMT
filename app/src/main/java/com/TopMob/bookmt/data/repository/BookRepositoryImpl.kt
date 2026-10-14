@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.withLock
 import java.io.IOException
 
 /**
@@ -33,6 +34,8 @@ class BookRepositoryImpl(
     private val now: () -> Long = System::currentTimeMillis,
     private val storageDir: java.io.File? = null,
 ) : BookRepository {
+
+    private val offlineMutex = kotlinx.coroutines.sync.Mutex()
 
     override fun observeBooks(): Flow<List<Book>> =
         bookDao.observeAll().map { list -> list.map { it.toDomain() } }
@@ -100,13 +103,41 @@ class BookRepositoryImpl(
                     ?: return@withContext Resource.Error(
                         IllegalStateException("No parser for ${book.format}"),
                     )
-                val content = openStream(book.uri).use { parser.parse(it, book.title) }
+                val local = prepareOffline(book)
+                val content = openStream(local.uri).use { parser.parse(it, book.title) }
                 Resource.Success(content)
             } catch (t: Throwable) {
                 if (t is CancellationException) throw t
                 Resource.Error(t)
             }
         }
+
+    override suspend fun prepareOffline(book: Book): Book = withContext(dispatchers.io) {
+        val directory = storageDir ?: return@withContext book
+        offlineMutex.withLock {
+            val current = bookDao.getById(book.id)?.toDomain() ?: error("Book not found")
+            val source = Uri.parse(current.uri)
+            val owned = source.scheme == "file" && source.path?.let {
+                java.io.File(it).canonicalFile.parentFile == directory.canonicalFile
+            } == true
+            if (owned) {
+                check(java.io.File(checkNotNull(source.path)).isFile) { "Local book file is missing" }
+                return@withLock current
+            }
+            var local = com.TopMob.bookmt.data.importing.OwnedBookStorage.copy(contentResolver, source, directory,
+                current.format.name.lowercase())
+            val duplicate = bookDao.getByUri(local.toString())
+            if (duplicate != null && duplicate.id != current.id) {
+                // Keep both legacy records and their annotations when identical files were imported earlier.
+                val distinct = java.io.File(directory, "legacy-${current.id}.${current.format.name.lowercase()}")
+                java.io.File(checkNotNull(local.path)).copyTo(distinct, overwrite = true)
+                local = Uri.fromFile(distinct)
+            }
+            val size = java.io.File(checkNotNull(local.path)).length()
+            bookDao.updateSource(current.id, local.toString(), size)
+            current.copy(uri = local.toString(), fileSizeBytes = size)
+        }
+    }
 
     override suspend fun updateProgress(bookId: Long, progress: Float, position: Int) {
         withContext(dispatchers.io) {

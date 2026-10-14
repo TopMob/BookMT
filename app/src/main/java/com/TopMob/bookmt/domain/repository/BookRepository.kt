@@ -27,6 +27,9 @@ interface BookRepository {
     /** Fully parses a previously-imported book's content for reading. */
     suspend fun loadContent(book: Book): Resource<BookContent>
 
+    /** Ensures a legacy external document has an owned local copy without changing its identity. */
+    suspend fun prepareOffline(book: Book): Book = book
+
     suspend fun updateProgress(bookId: Long, progress: Float, position: Int)
 
     suspend fun updateTags(bookId: Long, tags: List<String>)

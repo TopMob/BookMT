@@ -50,7 +50,7 @@ class PdfReaderViewModel @Inject constructor(
         viewModelScope.launch { bookmarks.observe(id).collect { entries -> mutable.update { it.copy(bookmarks = entries) } } }
         viewModelScope.launch {
             try {
-                val book = repository.getBook(id) ?: error("Book not found")
+                val book = repository.prepareOffline(repository.getBook(id) ?: error("Book not found"))
                 val count = withContext(Dispatchers.IO) {
                     mutex.withLock {
                         // SAF providers may return pipes; PdfRenderer requires a seekable descriptor.

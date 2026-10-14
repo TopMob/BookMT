@@ -21,6 +21,7 @@ import javax.inject.Inject
 class BookDetailsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: BookRepository,
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
 ) : ViewModel() {
 
     private val bookId: Long = checkNotNull(savedStateHandle[Screen.ARG_BOOK_ID]) {
@@ -35,6 +36,41 @@ class BookDetailsViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
     fun clearError() { _error.value = null }
+
+    fun importCover(uri: android.net.Uri, onImported: (String) -> Unit) {
+        if (_isSaving.value) return
+        _isSaving.value = true
+        viewModelScope.launch {
+            try {
+                val path = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val dir = java.io.File(context.filesDir, "covers").apply { mkdirs() }
+                    val target = java.io.File(dir, "cover_${bookId}_${java.util.UUID.randomUUID()}.img")
+                    try {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            target.outputStream().use { output ->
+                                val buffer = ByteArray(8192)
+                                var total = 0L
+                                while (true) {
+                                    val count = input.read(buffer)
+                                    if (count < 0) break
+                                    total += count
+                                    require(total <= 20L * 1024 * 1024) { "Cover exceeds 20 MB" }
+                                    output.write(buffer, 0, count)
+                                }
+                            }
+                        } ?: error("Cannot open cover")
+                        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        android.graphics.BitmapFactory.decodeFile(target.path, bounds)
+                        require(bounds.outWidth > 0 && bounds.outHeight > 0) { "Invalid image file" }
+                        target.absolutePath
+                    } catch (e: Exception) { target.delete(); throw e }
+                }
+                onImported(path)
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { _error.value = e.message ?: "Cannot import cover" }
+            finally { _isSaving.value = false }
+        }
+    }
 
     fun save(
         title: String,

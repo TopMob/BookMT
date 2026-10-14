@@ -1,9 +1,6 @@
 package com.TopMob.bookmt.presentation.bookshelf
 
-import android.content.Context
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,7 +41,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -56,7 +52,6 @@ import com.TopMob.bookmt.domain.model.Book
 import com.TopMob.bookmt.presentation.util.formatDate
 import com.TopMob.bookmt.presentation.util.formatDuration
 import com.TopMob.bookmt.presentation.util.formatFileSize
-import java.io.File
 
 /**
  * Editable book card + technical info + reading statistics. Reached from the bookshelf long-press
@@ -75,7 +70,6 @@ fun BookDetailsScreen(
     LaunchedEffect(error) {
         error?.let { snackbar.showSnackbar(it); viewModel.clearError() }
     }
-    val context = LocalContext.current
 
     var title by rememberSaveable { mutableStateOf("") }
     var author by rememberSaveable { mutableStateOf("") }
@@ -98,11 +92,10 @@ fun BookDetailsScreen(
     }
 
     val coverPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia(),
+        com.TopMob.bookmt.presentation.util.LocalOpenDocument(),
     ) { uri ->
         if (uri != null) {
-            val saved = copyCoverToInternal(context, uri, book?.id ?: 0L)
-            if (saved != null) coverPath = saved
+            viewModel.importCover(uri) { coverPath = it }
         }
     }
 
@@ -188,12 +181,9 @@ fun BookDetailsScreen(
             }
             Spacer(Modifier.height(8.dp))
             OutlinedButton(
+                enabled = !isSaving,
                 onClick = {
-                    coverPicker.launch(
-                        androidx.activity.result.PickVisualMediaRequest(
-                            ActivityResultContracts.PickVisualMedia.ImageOnly,
-                        ),
-                    )
+                    coverPicker.launch(arrayOf("image/*"))
                 },
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             ) {
@@ -293,18 +283,3 @@ private fun InfoRow(label: String, value: String) {
         Text(text = value, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
     }
 }
-
-/**
- * Copies a picked cover image into `filesDir/covers`. The filename carries a timestamp so the path
- * changes on every pick — otherwise Coil's cache would keep showing the previous image. Older covers
- * for the same book are pruned to avoid accumulation.
- */
-private fun copyCoverToInternal(context: Context, uri: Uri, bookId: Long): String? = runCatching {
-    val dir = File(context.filesDir, "covers").apply { mkdirs() }
-    dir.listFiles { f -> f.name.startsWith("cover_${bookId}_") }?.forEach { it.delete() }
-    val target = File(dir, "cover_${bookId}_${System.currentTimeMillis()}.img")
-    context.contentResolver.openInputStream(uri)?.use { input ->
-        target.outputStream().use { output -> input.copyTo(output) }
-    } ?: return null
-    target.absolutePath
-}.getOrNull()
