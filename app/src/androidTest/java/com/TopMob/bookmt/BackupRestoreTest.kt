@@ -9,6 +9,7 @@ import com.TopMob.bookmt.core.common.Constants
 import com.TopMob.bookmt.core.common.DispatcherProvider
 import com.TopMob.bookmt.data.backup.BackupManager
 import com.TopMob.bookmt.data.local.BookMTDatabase
+import com.TopMob.bookmt.data.mapper.toEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -74,5 +75,34 @@ class BackupRestoreTest {
         assertTrue(manager.import(backup(BackupManager.DB_ENTRY, "not sqlite")).isFailure)
         assertFalse(File(root, "pending-restore").exists())
         assertFalse(context.getDatabasePath(Constants.DATABASE_NAME).exists())
+    }
+
+    @Test fun portableSchemaThreeBackupRetainsBothPositionsAndAnnotationAnchors() = runBlocking {
+        val source = File(root, "original.txt").apply { writeText("Текст переносимой книги") }
+        val anchor = com.TopMob.bookmt.domain.model.TextAnchor("chapter:0", 8, "Текст ", "книги").encode()
+        val book = com.TopMob.bookmt.domain.model.Book(uri = Uri.fromFile(source).toString(), title = "Книга",
+            format = com.TopMob.bookmt.domain.model.BookFormat.TXT, lastReadPosition = 8, positionAnchor = anchor,
+            listeningPosition = 12, listeningAnchor = anchor, contentRevision = 2)
+        val id = database.bookDao().insert(book.toEntity())
+        database.bookmarkDao().insert(
+            com.TopMob.bookmt.domain.model.Bookmark(bookId = id, type = com.TopMob.bookmt.domain.model.BookmarkType.NOTE,
+                position = 8, endPosition = 12, note = "Заметка", startAnchor = anchor, endAnchor = anchor).toEntity()
+        )
+        val archive = Uri.fromFile(File(root, "portable.zip"))
+        assertTrue(manager.export(archive).isSuccess)
+        assertTrue(manager.import(archive).isSuccess)
+        BackupManager.applyPendingRestore(context)
+        android.database.sqlite.SQLiteDatabase.openDatabase(context.getDatabasePath(Constants.DATABASE_NAME).path, null,
+            android.database.sqlite.SQLiteDatabase.OPEN_READONLY).use { restored ->
+            assertEquals(3, restored.version)
+            restored.rawQuery("SELECT uri,last_read_position,listening_position,position_anchor FROM books WHERE id=?", arrayOf(id.toString())).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(8, cursor.getInt(1)); assertEquals(12, cursor.getInt(2)); assertEquals(anchor, cursor.getString(3))
+                assertEquals(source.readText(), File(Uri.parse(cursor.getString(0)).path!!).readText())
+            }
+            restored.rawQuery("SELECT note,start_anchor FROM bookmarks WHERE book_id=?", arrayOf(id.toString())).use { cursor ->
+                assertTrue(cursor.moveToFirst()); assertEquals("Заметка", cursor.getString(0)); assertEquals(anchor, cursor.getString(1))
+            }
+        }
     }
 }

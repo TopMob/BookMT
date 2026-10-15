@@ -22,7 +22,7 @@ object DatabaseModule {
     fun provideDatabase(@ApplicationContext context: Context): BookMTDatabase =
         Room.databaseBuilder(context, BookMTDatabase::class.java, Constants.DATABASE_NAME)
             // Foreign keys are needed for the bookmark cascade-delete to fire.
-            .addMigrations(BookMTDatabase.MIGRATION_1_2)
+            .addMigrations(BookMTDatabase.MIGRATION_1_2, BookMTDatabase.MIGRATION_2_3)
             .build()
 
     @Provides

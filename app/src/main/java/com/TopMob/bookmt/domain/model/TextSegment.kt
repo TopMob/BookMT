@@ -17,8 +17,10 @@ data class TextSegment(
     val role: SpeakerRole,
     val startOffset: Int,
     val speakerName: String? = null,
+    val sourceEndOffset: Int? = null,
+    val pauseAfterMs: Int = 0,
 ) {
-    val endOffset: Int get() = startOffset + text.length
+    val endOffset: Int get() = sourceEndOffset ?: (startOffset + text.length)
 }
 
 /**

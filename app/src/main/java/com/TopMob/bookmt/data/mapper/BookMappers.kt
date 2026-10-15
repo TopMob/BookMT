@@ -24,6 +24,8 @@ fun BookEntity.toDomain(): Book = Book(
     description = description,
     fileSizeBytes = fileSize,
     totalReadingTimeMs = totalReadingTimeMs,
+    completed = completed, positionAnchor = positionAnchor, listeningPosition = listeningPosition,
+    listeningAnchor = listeningAnchor, contentRevision = contentRevision,
 )
 
 fun Book.toEntity(): BookEntity = BookEntity(
@@ -41,6 +43,8 @@ fun Book.toEntity(): BookEntity = BookEntity(
     description = description,
     fileSize = fileSizeBytes,
     totalReadingTimeMs = totalReadingTimeMs,
+    completed = completed, positionAnchor = positionAnchor, listeningPosition = listeningPosition,
+    listeningAnchor = listeningAnchor, contentRevision = contentRevision,
 )
 
 /* ---- Bookmark <-> BookmarkEntity ---- */
@@ -56,6 +60,7 @@ fun BookmarkEntity.toDomain(): Bookmark = Bookmark(
     colorArgb = colorArgb,
     chapterTitle = chapterTitle,
     timestamp = timestamp,
+    startAnchor = startAnchor, endAnchor = endAnchor, contentRevision = contentRevision,
 )
 
 fun Bookmark.toEntity(): BookmarkEntity = BookmarkEntity(
@@ -69,4 +74,5 @@ fun Bookmark.toEntity(): BookmarkEntity = BookmarkEntity(
     colorArgb = colorArgb,
     chapterTitle = chapterTitle,
     timestamp = timestamp,
+    startAnchor = startAnchor, endAnchor = endAnchor, contentRevision = contentRevision,
 )

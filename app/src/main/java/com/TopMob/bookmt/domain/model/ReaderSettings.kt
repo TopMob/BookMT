@@ -29,6 +29,9 @@ data class ReaderSettings(
     val ttsMaleVoice: Boolean = false,
     val ttsSpeed: Float = 1f,
     val ttsLicenseAccepted: Boolean = false,
+    val bookFormatting: Boolean = true,
+    val ttsSentencePauseMs: Int = 220,
+    val ttsParagraphPauseMs: Int = 550,
 ) {
     companion object {
         const val MIN_FONT_SIZE_SP = 10f
@@ -47,6 +50,8 @@ data class ReaderSettings(
             verticalMarginDp = verticalMarginDp.coerceIn(0, 64),
             autoPageSeconds = autoPageSeconds.coerceIn(5, 180),
             ttsSpeed = ttsSpeed.takeIf { it.isFinite() }?.coerceIn(0.75f, 1.5f) ?: 1f,
+            ttsSentencePauseMs = ttsSentencePauseMs.coerceIn(0, 1000),
+            ttsParagraphPauseMs = ttsParagraphPauseMs.coerceIn(0, 1500),
             brightnessLevel = brightnessLevel.takeIf { it.isFinite() }?.coerceIn(0.01f, 1f) ?: defaults.brightnessLevel,
         )
     }

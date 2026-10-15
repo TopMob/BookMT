@@ -21,7 +21,7 @@ interface TtsEngine {
     val state: StateFlow<TtsPlaybackState>
 
     /** Warms up the runtime and pre-loads the [VoiceProfile]s referenced by [assignment]. */
-    suspend fun prepare(assignment: VoiceAssignment)
+    suspend fun prepare(assignment: VoiceAssignment, bookId: Long? = null)
 
     /** Lists voices the engine has discovered/loaded (bundled assets + user-imported models). */
     suspend fun availableVoices(): List<VoiceProfile>
@@ -53,6 +53,8 @@ data class TtsPlaybackState(
     val currentOffset: Int = 0,
     val currentSegment: TextSegment? = null,
     val errorMessage: String? = null,
+    val bookId: Long? = null,
+    val sessionId: Long = 0L,
 )
 
 enum class TtsStatus { IDLE, PREPARING, PLAYING, PAUSED, STOPPED, ERROR }

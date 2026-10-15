@@ -36,6 +36,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -144,6 +145,8 @@ fun ReaderBottomBar(
     onAddBookmark: () -> Unit,
     onPlayPauseTts: () -> Unit,
     onStopTts: () -> Unit,
+    paginationReady: Boolean = true,
+    onResumeSavedTts: (() -> Unit)? = null,
 ) {
     AnimatedVisibility(
         visible = visible,
@@ -173,7 +176,8 @@ fun ReaderBottomBar(
                         )
                     }
                     Text(
-                        text = stringResource(R.string.reader_page_indicator, currentPage, totalPages.coerceAtLeast(1)),
+                        text = if (paginationReady) stringResource(R.string.reader_page_indicator, currentPage, totalPages.coerceAtLeast(1))
+                            else stringResource(R.string.reader_measuring_pages),
                         style = MaterialTheme.typography.labelMedium,
                     )
                     IconButton(onClick = onNextChapter) {
@@ -182,6 +186,9 @@ fun ReaderBottomBar(
                             contentDescription = stringResource(R.string.action_next),
                         )
                     }
+                }
+                onResumeSavedTts?.let { resume ->
+                    TextButton(onClick = resume) { Text(stringResource(R.string.tts_resume_saved)) }
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),

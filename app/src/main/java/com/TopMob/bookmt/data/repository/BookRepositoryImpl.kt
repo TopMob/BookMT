@@ -33,6 +33,9 @@ class BookRepositoryImpl(
     private val dispatchers: DispatcherProvider,
     private val now: () -> Long = System::currentTimeMillis,
     private val storageDir: java.io.File? = null,
+    private val cacheDir: java.io.File? = null,
+    private val bookmarkDao: com.TopMob.bookmt.data.local.dao.BookmarkDao? = null,
+    private val database: com.TopMob.bookmt.data.local.BookMTDatabase? = null,
 ) : BookRepository {
 
     private data class ContentKey(val uri: String, val bytes: Long, val modified: Long, val title: String, val format: BookFormat)
@@ -40,6 +43,7 @@ class BookRepositoryImpl(
     @Volatile private var cachedContent: CachedContent? = null
 
     private val offlineMutex = kotlinx.coroutines.sync.Mutex()
+    private val contentMutex = kotlinx.coroutines.sync.Mutex()
 
     override fun observeBooks(): Flow<List<Book>> =
         bookDao.observeAll().map { list -> list.map { it.toDomain() } }
@@ -114,9 +118,30 @@ class BookRepositoryImpl(
                 cachedContent?.takeIf { key != null && it.key == key }?.let {
                     return@withContext Resource.Success(it.content)
                 }
-                val content = openStream(local.uri).use { parser.parse(it, book.title) }
-                cachedContent = if (key != null && content.totalLength <= 4_000_000) CachedContent(key, content) else null
-                Resource.Success(content)
+                contentMutex.withLock {
+                    val disk = cacheDir?.let { com.TopMob.bookmt.data.reader.DiskBookCache(it) }
+                    val diskKey = file?.let { disk?.key(it, book.format) }
+                    var content = diskKey?.let { disk?.read(it) }
+                    if (content == null) {
+                        content = if (disk != null && diskKey != null) disk.writer(diskKey).use { destination ->
+                            openStream(local.uri).use { parser.parseTo(it, book.title, destination) }
+                        } else openStream(local.uri).use { parser.parse(it, book.title) }
+                    }
+                    val parsed = checkNotNull(content)
+                    val oldMarks = bookmarkDao?.getForBook(book.id).orEmpty()
+                    val repaired = if ((local.contentRevision != parsed.revision || oldMarks.any { it.contentRevision != parsed.revision }) && database != null && bookmarkDao != null) {
+                        val legacy = if ((local.positionAnchor == null && local.lastReadPosition > 0) || oldMarks.any { it.contentRevision != parsed.revision && (it.startAnchor == null || it.endAnchor == null) }) {
+                            try { openStream(local.uri).use { parser.parse(it, book.title) } }
+                            catch (error: CancellationException) { throw error }
+                            catch (_: Exception) { null }
+                        } else null
+                        com.TopMob.bookmt.data.reader.PositionMigration(database).relocate(local, oldMarks, legacy, parsed)
+                    } else parsed
+                    cachedContent = if (key != null) CachedContent(key, repaired) else null
+                    disk?.pin(repaired)
+                    if (diskKey != null) disk?.prune(diskKey)
+                    Resource.Success(repaired)
+                }
             } catch (t: Throwable) {
                 if (t is CancellationException) throw t
                 Resource.Error(t)
@@ -154,6 +179,25 @@ class BookRepositoryImpl(
         withContext(dispatchers.io) {
             bookDao.updateProgress(bookId, progress, position, now())
         }
+    }
+
+    override suspend fun saveReadingPosition(bookId: Long, progress: Float, position: Int, anchor: String?, revision: Int) =
+        withContext(dispatchers.io) { bookDao.saveReadingPosition(bookId, progress.coerceIn(0f, 1f), position.coerceAtLeast(0), anchor, revision, now()) }
+    override suspend fun saveListeningPosition(bookId: Long, position: Int, anchor: String?) =
+        withContext(dispatchers.io) { bookDao.saveListeningPosition(bookId, position.coerceAtLeast(0), anchor) }
+    override suspend fun setCompleted(bookId: Long, completed: Boolean) = withContext(dispatchers.io) { bookDao.setCompleted(bookId, completed) }
+    override suspend fun invalidateContent(bookId: Long) = withContext(dispatchers.io) {
+        contentMutex.withLock {
+            cachedContent = null
+            val book = bookDao.getById(bookId)?.toDomain() ?: return@withLock
+            val uri = Uri.parse(book.uri)
+            val source = if (uri.scheme == "file") uri.path?.let { java.io.File(it) } else null
+            if (source != null && cacheDir != null) {
+                val key = com.TopMob.bookmt.data.reader.DiskBookCache(cacheDir).key(source, book.format)
+                java.io.File(cacheDir, key).deleteRecursively()
+            }
+        }
+        Unit
     }
 
     override suspend fun updateTags(bookId: Long, tags: List<String>) {

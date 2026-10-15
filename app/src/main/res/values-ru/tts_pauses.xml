@@ -1,0 +1,5 @@
+<resources>
+    <string name="tts_resume_saved">Продолжить озвучку с сохранённого места</string>
+    <string name="tts_sentence_pause">Пауза между предложениями: %d мс</string>
+    <string name="tts_paragraph_pause">Пауза между абзацами: %d мс</string>
+</resources>

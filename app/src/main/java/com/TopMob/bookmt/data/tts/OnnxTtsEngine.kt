@@ -38,13 +38,15 @@ class OnnxTtsEngine(private val context: Context, private val dispatchers: Dispa
 
     override suspend fun availableVoices() = listOf(DefaultVoices.female, DefaultVoices.male)
 
-    override suspend fun prepare(assignment: VoiceAssignment) = withContext(dispatchers.default) {
+    override suspend fun prepare(assignment: VoiceAssignment, bookId: Long?) = withContext(dispatchers.default) {
+        if (state.value.status in setOf(TtsStatus.PLAYING, TtsStatus.PAUSED, TtsStatus.PREPARING)) stop()
         nativeMutex.withLock {
             runtimeGeneration++
             stopped = false
             paused = false
             this@OnnxTtsEngine.assignment = assignment
-            mutableState.value = TtsPlaybackState(status = TtsStatus.PREPARING, activeVoiceId = assignment.narrator.id)
+            mutableState.value = TtsPlaybackState(status = TtsStatus.PREPARING, activeVoiceId = assignment.narrator.id,
+                bookId = bookId, sessionId = runtimeGeneration)
             try {
                 ContextCompat.startForegroundService(context, Intent(context, TtsPlaybackService::class.java))
                 withTimeout(10_000) { TtsPlaybackService.ready.first { it } }
@@ -86,11 +88,11 @@ class OnnxTtsEngine(private val context: Context, private val dispatchers: Dispa
                     ensureRunning()
                     check(audio.samples.isNotEmpty()) { "Модель не смогла озвучить фрагмент" }
                     segment to audio
-                }.buffer(0).flowOn(dispatchers.default).collect { (segment, audio) ->
+                }.buffer(2).flowOn(dispatchers.default).collect { (segment, audio) ->
                     awaitUnpaused()
                     mutableState.update { it.copy(activeVoiceId = voices.voiceFor(segment.role).id,
                         currentSegment = segment, currentOffset = segment.startOffset) }
-                    play(audio.samples, audio.sampleRate)
+                    play(SpeechAudio.trimAndPad(audio.samples, audio.sampleRate, segment.pauseAfterMs), audio.sampleRate)
                     ensureRunning()
                     mutableState.update { it.copy(status = if (paused) TtsStatus.PAUSED else TtsStatus.PREPARING) }
                 }

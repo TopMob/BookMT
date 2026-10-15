@@ -16,8 +16,8 @@ android {
         applicationId = "com.TopMob.bookmt"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -47,6 +47,7 @@ android {
     }
 
     sourceSets["main"].assets.srcDir(rootProject.file(".tts-cache/assets"))
+    sourceSets["androidTest"].assets.srcDir("schemas")
     androidResources { noCompress += listOf("onnx", "bin") }
 
     // Both UI languages must be installed for the in-app language switcher.

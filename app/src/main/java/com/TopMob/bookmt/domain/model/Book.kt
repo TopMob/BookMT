@@ -33,13 +33,18 @@ data class Book(
     val description: String? = null,
     val fileSizeBytes: Long = 0L,
     val totalReadingTimeMs: Long = 0L,
+    val completed: Boolean = false,
+    val positionAnchor: String? = null,
+    val listeningPosition: Int = 0,
+    val listeningAnchor: String? = null,
+    val contentRevision: Int = 2,
 ) {
     /** Progress expressed as a 0..100 integer for UI badges. */
     val progressPercent: Int get() = (progress.coerceIn(0f, 1f) * 100).toInt()
 
     val hasBeenOpened: Boolean get() = lastReadTimestamp > 0L
 
-    val isFinished: Boolean get() = progress >= 1f
+    val isFinished: Boolean get() = completed || progress >= 1f
 
     /**
      * Rough estimate of the book's total character length, inferred from how far the last-read

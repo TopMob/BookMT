@@ -39,5 +39,5 @@ data class ReaderUiState(
         get() = if (totalLength <= 0) 0f else (currentOffset.toFloat() / totalLength).coerceIn(0f, 1f)
 
     val currentChapterTitle: String?
-        get() = content?.chapterAt(currentOffset)?.title
+        get() = content?.let { it.descriptor(it.chapterIndexAt(currentOffset))?.title }
 }

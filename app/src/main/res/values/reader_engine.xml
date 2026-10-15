@@ -1,0 +1,4 @@
+<resources>
+    <string name="reader_book_formatting">Use book text formatting</string>
+    <string name="reader_measuring_pages">Calculating pages…</string>
+</resources>

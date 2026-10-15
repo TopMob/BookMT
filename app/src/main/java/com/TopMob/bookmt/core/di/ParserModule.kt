@@ -38,7 +38,7 @@ object ParserModule {
 
     @Provides
     @IntoSet
-    fun provideEpubParser(dispatchers: DispatcherProvider): BookParser = EpubBookParser(dispatchers)
+    fun provideEpubParser(dispatchers: DispatcherProvider, @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context): BookParser = EpubBookParser(dispatchers, context.cacheDir)
 
     @Provides
     @IntoSet

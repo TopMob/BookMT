@@ -22,6 +22,9 @@ data class Bookmark(
     val colorArgb: Int? = null,
     val chapterTitle: String? = null,
     val timestamp: Long = 0L,
+    val startAnchor: String? = null,
+    val endAnchor: String? = null,
+    val contentRevision: Int = 2,
 )
 
 enum class BookmarkType { BOOKMARK, HIGHLIGHT, NOTE }

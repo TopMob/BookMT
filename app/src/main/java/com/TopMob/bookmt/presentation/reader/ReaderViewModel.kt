@@ -60,6 +60,10 @@ class ReaderViewModel @Inject constructor(
     private val navigationHistory = ArrayDeque<Int>()
     private var progressSaveJob: Job? = null
     private var ttsJob: Job? = null
+    private var readingPosition = 0
+    private var lastListeningPosition = -1
+    private var speechSession = -1L
+    private var hasLoaded = false
 
     /** Wall-clock start of the current foreground reading session, or null when paused. */
     private var sessionStartMs: Long? = null
@@ -92,12 +96,26 @@ class ReaderViewModel @Inject constructor(
 
     private fun observeTts() = viewModelScope.launch {
         readAloud.state.collect { ttsState ->
+            if (ttsState.bookId != null && ttsState.bookId != bookId) {
+                _uiState.update { it.copy(tts = com.TopMob.bookmt.domain.tts.TtsPlaybackState()) }
+                return@collect
+            }
             _uiState.update { current ->
                 // Keep the on-screen position synced to the spoken text while playing.
                 current.copy(tts = ttsState)
             }
-            if (ttsState.status == TtsStatus.PLAYING) {
-                ttsState.currentSegment?.let { moveToOffset(it.startOffset) }
+            if (ttsJob?.isActive == true && ttsState.status == TtsStatus.PLAYING) {
+                ttsState.currentSegment?.let { segment ->
+                    moveToOffset(segment.startOffset, save = false)
+                    if (lastListeningPosition != segment.startOffset) {
+                        lastListeningPosition = segment.startOffset
+                        annotationAction {
+                            val content = _uiState.value.content ?: return@annotationAction
+                            bookRepository.saveListeningPosition(bookId, segment.startOffset,
+                                com.TopMob.bookmt.domain.model.TextAnchors.capture(content, segment.startOffset)?.encode())
+                        }
+                    }
+                }
             }
         }
     }
@@ -111,18 +129,28 @@ class ReaderViewModel @Inject constructor(
         when (val result = openBook(bookId)) {
             is Resource.Success -> {
                 val content = result.data
-                val startOffset = (initialOffset.takeIf { it >= 0 } ?: book?.lastReadPosition ?: 0)
+                val refreshed = bookRepository.getBook(bookId) ?: book
+                val explicit = (if (hasLoaded) readingPosition else initialOffset.takeIf { it >= 0 })?.let { offset ->
+                    if (book?.contentRevision != content.revision) content.relocatedOffsets[offset] ?: offset else offset
+                }
+                val restored = kotlinx.coroutines.withContext(dispatchers.io) {
+                    com.TopMob.bookmt.domain.model.TextAnchors.resolve(content, refreshed?.positionAnchor, refreshed?.lastReadPosition ?: 0).offset
+                }
+                val startOffset = (explicit ?: restored)
                     .coerceIn(0, (content.totalLength - 1).coerceAtLeast(0))
-                // Opening the first page must still make this the most recently read book.
-                persistProgress(startOffset, content.totalLength)
+                readingPosition = startOffset
+                hasLoaded = true
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         content = content,
                         currentOffset = startOffset,
                         navigationVersion = it.navigationVersion + 1,
+                        errorMessage = if (content.positionWarnings > 0) "Некоторые старые отметки не удалось точно сопоставить с текстом. Проверьте их в списке закладок." else it.errorMessage,
                     )
                 }
+                // Write after publishing content so the initial checkpoint includes its anchor.
+                persistProgress(startOffset, content.totalLength)
             }
 
             is Resource.Error -> _uiState.update {
@@ -140,39 +168,29 @@ class ReaderViewModel @Inject constructor(
         if (_uiState.value.content == null) return
         val bounded = offset.coerceIn(0, (_uiState.value.totalLength - 1).coerceAtLeast(0))
         _uiState.update { it.copy(currentOffset = bounded) }
-        scheduleProgressSave(bounded)
+        if (ttsJob?.isActive != true) { readingPosition = bounded; scheduleProgressSave(bounded) }
     }
 
     fun onPageChanged(page: Int, total: Int) {
-        _uiState.update { it.copy(currentPage = page, totalPages = total, paginationReady = true) }
-        if (page == total) scheduleProgressSave(_uiState.value.currentOffset)
+        _uiState.update { it.copy(currentPage = page, totalPages = kotlin.math.abs(total), paginationReady = total > 0) }
+        if (total > 0 && page == total && ttsJob?.isActive != true) scheduleProgressSave(readingPosition)
     }
 
     fun onPrevChapter() {
         val content = _uiState.value.content ?: return
         val currentOffset = _uiState.value.currentOffset
-        val currentChapter = content.chapterAt(currentOffset) ?: return
-        val index = content.chapters.indexOf(currentChapter)
-        val prevChapter = content.chapters.getOrNull(index - 1)
-        if (prevChapter != null) {
-            jumpToOffset(prevChapter.startOffset)
-        } else {
-            jumpToOffset(0)
-        }
+        val previous = content.tableOfContents.entries.lastOrNull { it.offset < currentOffset }
+        jumpToOffset(previous?.offset ?: 0)
     }
 
     fun onNextChapter() {
         val content = _uiState.value.content ?: return
         val currentOffset = _uiState.value.currentOffset
-        val currentChapter = content.chapterAt(currentOffset) ?: return
-        val index = content.chapters.indexOf(currentChapter)
-        val nextChapter = content.chapters.getOrNull(index + 1)
-        if (nextChapter != null) {
-            jumpToOffset(nextChapter.startOffset)
-        }
+        content.tableOfContents.entries.firstOrNull { it.offset > currentOffset }?.let { jumpToOffset(it.offset) }
     }
 
     fun jumpToOffset(offset: Int) {
+        if (ttsJob?.isActive == true) onStopTts()
         val old = _uiState.value.currentOffset
         if (old != offset) {
             if (navigationHistory.lastOrNull() != old) navigationHistory.addLast(old)
@@ -185,10 +203,10 @@ class ReaderViewModel @Inject constructor(
         navigationHistory.removeLastOrNull()?.let(::moveToOffset)
     }
 
-    private fun moveToOffset(offset: Int) {
+    private fun moveToOffset(offset: Int, save: Boolean = true) {
         val bounded = offset.coerceIn(0, (_uiState.value.totalLength - 1).coerceAtLeast(0))
         _uiState.update { it.copy(currentOffset = bounded, navigationVersion = it.navigationVersion + 1, canReturn = navigationHistory.isNotEmpty()) }
-        scheduleProgressSave(bounded)
+        if (save) { readingPosition = bounded; scheduleProgressSave(bounded) }
     }
 
     private fun scheduleProgressSave(offset: Int) {
@@ -202,9 +220,10 @@ class ReaderViewModel @Inject constructor(
     private suspend fun persistProgress(offset: Int, length: Int) {
         try {
             val state = _uiState.value
-            if (!state.isLoading && state.paginationReady && state.totalPages > 0 && state.currentPage == state.totalPages && state.content != null) {
-                bookRepository.updateProgress(bookId, 1f, offset)
-            } else updateProgress(bookId, offset, length)
+            val progress = if (!state.isLoading && state.paginationReady && state.totalPages > 0 && state.currentPage == state.totalPages && state.content != null && state.currentOffset == offset && ttsJob?.isActive != true) 1f
+                else if (length > 0) (offset.toFloat() / length).coerceIn(0f, 1f) else 0f
+            val anchor = kotlinx.coroutines.withContext(dispatchers.io) { state.content?.let { com.TopMob.bookmt.domain.model.TextAnchors.capture(it, offset)?.encode() } }
+            bookRepository.saveReadingPosition(bookId, progress, offset, anchor, state.content?.revision ?: 2)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -234,7 +253,7 @@ class ReaderViewModel @Inject constructor(
         progressSaveJob?.cancel()
         val state = _uiState.value
         if (state.content != null) {
-            viewModelScope.launch(NonCancellable) { persistProgress(state.currentOffset, state.totalLength) }
+            viewModelScope.launch(NonCancellable) { persistProgress(readingPosition, state.totalLength) }
         }
         val start = sessionStartMs ?: return
         sessionStartMs = null
@@ -252,11 +271,12 @@ class ReaderViewModel @Inject constructor(
 
     fun onSearchChange(query: String) {
         searchJob?.cancel()
-        _uiState.update { it.copy(searchQuery = query, searchBusy = query.isNotBlank(), searchResults = emptyList(), searchLimited = false) }
+        val boundedQuery = query.take(512)
+        _uiState.update { it.copy(searchQuery = boundedQuery, searchBusy = boundedQuery.isNotBlank(), searchResults = emptyList(), searchLimited = false) }
         val content = _uiState.value.content ?: return
         searchJob = viewModelScope.launch {
             delay(250)
-            val results = kotlinx.coroutines.withContext(dispatchers.default) { BookTextSearch.find(content, query, 1001) }
+            val results = kotlinx.coroutines.withContext(dispatchers.default) { BookTextSearch.find(content, boundedQuery, 1001) }
             _uiState.update { it.copy(searchResults = results.take(1000), searchBusy = false, searchLimited = results.size > 1000) }
         }
     }
@@ -267,7 +287,7 @@ class ReaderViewModel @Inject constructor(
     fun onUpdateBookmark(bookmark: Bookmark) = annotationAction { manageBookmarks.update(bookmark) }
 
     private fun annotationAction(action: suspend () -> Unit) = viewModelScope.launch {
-        try { action() }
+        try { kotlinx.coroutines.withContext(dispatchers.io) { action() } }
         catch (e: CancellationException) { throw e }
         catch (e: Exception) { _uiState.update { it.copy(errorMessage = e.message ?: "Unable to save annotation") } }
     }
@@ -283,14 +303,12 @@ class ReaderViewModel @Inject constructor(
     fun onAddBookmarkAtCurrentPage() {
         val state = _uiState.value
         val offset = state.currentOffset
-        val chapter = state.content?.chapterAt(offset) ?: return
-        val localOffset = (offset - chapter.startOffset).coerceIn(0, chapter.text.length)
-        val snippet = chapter.text.substring(localOffset).take(SNIPPET_LENGTH).trim()
+        if (state.content == null) return
         addAnnotation(
             type = BookmarkType.BOOKMARK,
             start = offset,
             end = offset,
-            snippet = snippet,
+            snippet = null,
         )
     }
 
@@ -304,7 +322,7 @@ class ReaderViewModel @Inject constructor(
         type: BookmarkType,
         start: Int,
         end: Int,
-        snippet: String,
+        snippet: String?,
         note: String? = null,
         colorArgb: Int? = null,
     ) {
@@ -315,10 +333,15 @@ class ReaderViewModel @Inject constructor(
                     type = type,
                     position = start,
                     endPosition = end,
-                    textSnippet = snippet,
+                    textSnippet = snippet ?: _uiState.value.content?.let {
+                        com.TopMob.bookmt.domain.model.TextAnchors.range(it, start, minOf(it.totalLength, start + SNIPPET_LENGTH)).trim()
+                    }.orEmpty(),
                     note = note,
                     colorArgb = colorArgb,
-                    chapterTitle = _uiState.value.content?.chapterAt(start)?.title,
+                    chapterTitle = _uiState.value.content?.let { it.descriptor(it.chapterIndexAt(start))?.title },
+                    startAnchor = _uiState.value.content?.let { com.TopMob.bookmt.domain.model.TextAnchors.capture(it, start)?.encode() },
+                    endAnchor = _uiState.value.content?.let { com.TopMob.bookmt.domain.model.TextAnchors.capture(it, end)?.encode() },
+                    contentRevision = _uiState.value.content?.revision ?: 2,
                 ),
             )
         }
@@ -330,38 +353,61 @@ class ReaderViewModel @Inject constructor(
 
     /* -------- TTS (multi-voice read-aloud) -------- */
 
-    fun onPlayTts() {
+    fun onPlayTts(resumeSaved: Boolean = false) {
         val content = _uiState.value.content ?: return
         if (!_uiState.value.settings.ttsLicenseAccepted) return
         if (ttsJob?.isActive == true) return
         stopAutoPaging()
         val settings = _uiState.value.settings
-        val offset = _uiState.value.currentOffset
+        val visibleOffset = _uiState.value.currentOffset
+        val saved = _uiState.value.book
         ttsJob = viewModelScope.launch {
             try {
-                readAloud.prepare(DefaultVoices.forSettings(settings))
-                readAloud.start(content, offset)
+                val offset = if (resumeSaved && saved != null) kotlinx.coroutines.withContext(dispatchers.io) {
+                    com.TopMob.bookmt.domain.model.TextAnchors.resolve(content, saved.listeningAnchor, saved.listeningPosition).offset
+                } else visibleOffset
+                readAloud.prepare(DefaultVoices.forSettings(settings), bookId)
+                speechSession = readAloud.state.value.sessionId
+                readAloud.start(content, offset, settings.ttsSentencePauseMs, settings.ttsParagraphPauseMs)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(errorMessage = e.message ?: "Read aloud is unavailable") }
+            } finally {
+                if (speechSession == readAloud.state.value.sessionId && readAloud.state.value.status in setOf(TtsStatus.PLAYING, TtsStatus.PAUSED, TtsStatus.PREPARING)) readAloud.release()
             }
         }
     }
 
-    fun onPauseTts() = readAloud.pause()
-    fun onResumeTts() = readAloud.resume()
+    fun onPauseTts() { if (speechSession == readAloud.state.value.sessionId) readAloud.pause() }
+    fun onResumeTts() { if (speechSession == readAloud.state.value.sessionId) readAloud.resume() }
     fun onStopTts() {
         ttsJob?.cancel()
-        readAloud.stop()
+        if (speechSession == readAloud.state.value.sessionId) readAloud.stop()
     }
 
     fun onErrorShown() = _uiState.update { it.copy(errorMessage = null) }
 
+    fun onContentError(error: Throwable) = _uiState.update { it.copy(errorMessage = error.message ?: "Не удалось прочитать содержимое книги") }
+
+    fun onRebuildReadingCache() {
+        val speech = ttsJob
+        onStopTts()
+        _uiState.update { it.copy(content = null, isLoading = true, paginationReady = false, errorMessage = null) }
+        viewModelScope.launch {
+            try {
+                speech?.join()
+                bookRepository.invalidateContent(bookId)
+                loadContent().join()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { _uiState.update { it.copy(isLoading = false, errorMessage = e.message) } }
+        }
+    }
+
     override fun onCleared() {
         onReadingPaused()
         super.onCleared()
-        readAloud.release()
+        if (speechSession == readAloud.state.value.sessionId) readAloud.release()
     }
 
     private companion object {

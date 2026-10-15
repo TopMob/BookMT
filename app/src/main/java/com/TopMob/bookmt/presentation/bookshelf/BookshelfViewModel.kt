@@ -152,6 +152,8 @@ class BookshelfViewModel @Inject constructor(
         if (read) {
             bookRepository.updateProgress(book.id, progress = 1f, position = book.lastReadPosition)
         } else {
+            bookRepository.setCompleted(book.id, false)
+            bookRepository.saveListeningPosition(book.id, 0, null)
             bookRepository.updateProgress(book.id, progress = 0f, position = 0)
         }
     }

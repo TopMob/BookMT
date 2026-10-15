@@ -107,10 +107,11 @@ class BackupManager @Inject constructor(
             val stagedDb = File(staging, DB_ENTRY)
             if (stagedDb.exists()) {
                 SQLiteDatabase.openDatabase(stagedDb.path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
-                    check(db.version in 1..2) { "Unsupported backup database version" }
+                    check(db.version in 1..3) { "Unsupported backup database version" }
                     db.rawQuery("SELECT identity_hash FROM room_master_table WHERE id = 42", null).use { cursor ->
                         check(cursor.moveToFirst() && cursor.getString(0) in setOf(
                             "aa0f6cfc7351c57ed761785a142e4a00", "e235dd67b0a52228c8e513074e295a72",
+                            "7b7f1e18ec37febebc293fd51bdc8bca",
                         )) { "This is not a compatible BookMT backup" }
                     }
                     db.rawQuery("PRAGMA integrity_check", null).use { cursor ->

@@ -1,27 +1,37 @@
 package com.TopMob.bookmt.domain.usecase
 
-import com.TopMob.bookmt.domain.model.BookContent
-import com.TopMob.bookmt.domain.model.TextSegment
-import com.TopMob.bookmt.domain.model.VoiceAssignment
-import com.TopMob.bookmt.domain.model.SpeakerRole
+import com.TopMob.bookmt.domain.model.*
 import com.TopMob.bookmt.domain.tts.TtsEngine
 import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 
-/** Lazily feeds bounded passages: never copies or analyzes the entire book before speaking. */
+/** Reads lazily from the requested block; phrase offsets always refer to unmodified source text. */
 class ReadAloudUseCase @Inject constructor(private val engine: TtsEngine) {
     val state get() = engine.state
-    suspend fun prepare(assignment: VoiceAssignment) = engine.prepare(assignment)
-    suspend fun start(content: BookContent, fromOffset: Int) = engine.speak(flow {
-        for (chapter in content.chapters) {
-            var cursor = (fromOffset - chapter.startOffset).coerceIn(0, chapter.text.length)
-            while (cursor < chapter.text.length) {
-                val end = speechBoundary(chapter.text, cursor)
-                val batch = chapter.text.substring(cursor, end)
-                // Keep dialogue and attribution together for natural prosody. Automatic role
-                // assignment is deliberately deferred until character analysis is implemented.
-                emit(TextSegment(batch, SpeakerRole.NARRATOR, chapter.startOffset + cursor))
-                cursor = end
+    suspend fun prepare(assignment: VoiceAssignment, bookId: Long? = null) = engine.prepare(assignment, bookId)
+    suspend fun start(content: BookContent, fromOffset: Int, sentencePauseMs: Int = 220, paragraphPauseMs: Int = 550) = engine.speak(flow {
+        val first = content.chapterIndexAt(fromOffset).coerceAtLeast(0)
+        for (index in first until content.chapters.size) {
+            val chapter = content.chapters[index]
+            if (chapter.auxiliary && content.descriptor(first)?.auxiliary != true) continue
+            val text = chapter.text
+            var cursor = (fromOffset - chapter.startOffset).coerceIn(0, text.length)
+            while (cursor < text.length) {
+                while (cursor < text.length && (text[cursor].isWhitespace() || text[cursor] == '\uFFFC')) cursor++
+                if (cursor == text.length) break
+                val end = speechBoundary(text, cursor)
+                val raw = text.substring(cursor, end)
+                val batch = raw.trimEnd().replace('\uFFFC', ' ').replace("\u00AD", "")
+                var next = end
+                while (next < text.length && text[next].isWhitespace()) next++
+                val paragraph = '\n' in text.substring(cursor, next) || (end == text.length &&
+                    (index == content.chapters.lastIndex || content.descriptor(index + 1)?.sourceId != chapter.sourceId))
+                val sentence = raw.trimEnd().trimEnd('"', '\'', '»', '”', ')', ']').lastOrNull() in setOf('.', '!', '?', '…')
+                val pause = when { paragraph -> paragraphPauseMs; sentence -> sentencePauseMs; else -> 60 }
+                if (batch.any(Char::isLetterOrDigit)) emit(TextSegment(batch, SpeakerRole.NARRATOR,
+                    chapter.startOffset + cursor, sourceEndOffset = chapter.startOffset + cursor + raw.trimEnd().length,
+                    pauseAfterMs = pause))
+                cursor = next
             }
         }
     })
@@ -31,16 +41,28 @@ class ReadAloudUseCase @Inject constructor(private val engine: TtsEngine) {
     fun release() = engine.release()
 }
 
-/** Bounded even for malformed books without whitespace; preserves original character offsets. */
+/** Split on the first real phrase end, excluding decimals, initials and common Russian abbreviations. */
 internal fun speechBoundary(text: String, start: Int, limit: Int = 240): Int {
-    var end = minOf(start + limit, text.length)
-    if (end == text.length) return end
-    val sentence = (end - 1 downTo start + 40).firstOrNull {
-        text[it] in ".!?…\n" && (it + 1 == text.length || text[it + 1].isWhitespace())
+    val hardEnd = minOf(start + limit, text.length)
+    var i = start
+    while (i < hardEnd) {
+        val c = text[i]
+        if (c == '\n' && i > start) return i + 1
+        if (c in ".!?…") {
+            var end = i + 1
+            while (end < text.length && text[end] in ".!?…\"'»”)]") end++
+            val boundary = end == text.length || text[end].isWhitespace()
+            val word = text.substring(start, i).takeLastWhile { it.isLetter() }.lowercase()
+            val abbreviation = c == '.' && ((word.length == 1 && word.firstOrNull()?.isLetter() == true) || word in ABBREVIATIONS)
+            if (boundary && !abbreviation && end <= hardEnd) return end
+        }
+        i++
     }
-    if (sentence != null) return sentence + 1
+    if (hardEnd == text.length) return hardEnd
+    var end = hardEnd
     val space = (end - 1 downTo start + 1).firstOrNull { text[it].isWhitespace() }
     if (space != null) return space + 1
     if (text[end - 1].isHighSurrogate() && text[end].isLowSurrogate()) end--
     return end
 }
+private val ABBREVIATIONS = setOf("г", "ул", "д", "стр", "рис", "им", "т", "п", "др", "пр", "руб", "коп", "мин", "сек", "проф", "доц", "акад", "тов", "см", "тел", "fig", "mr", "mrs", "dr", "etc")

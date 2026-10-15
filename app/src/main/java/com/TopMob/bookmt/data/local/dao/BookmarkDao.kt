@@ -16,6 +16,12 @@ interface BookmarkDao {
     @Query("SELECT * FROM bookmarks WHERE book_id = :bookId ORDER BY position ASC")
     fun observeForBook(bookId: Long): Flow<List<BookmarkEntity>>
 
+    @Query("SELECT * FROM bookmarks WHERE book_id=:bookId ORDER BY position ASC")
+    suspend fun getForBook(bookId: Long): List<BookmarkEntity>
+
+    @Query("UPDATE bookmarks SET position=:start, end_position=:end, start_anchor=:startAnchor, end_anchor=:endAnchor, content_revision=:revision WHERE id=:id")
+    suspend fun updateAnchors(id: Long, start: Int, end: Int, startAnchor: String?, endAnchor: String?, revision: Int)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(bookmark: BookmarkEntity): Long
 

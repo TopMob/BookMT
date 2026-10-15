@@ -18,7 +18,7 @@ import com.TopMob.bookmt.data.local.entity.BookmarkEntity
  */
 @Database(
     entities = [BookEntity::class, BookmarkEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -27,6 +27,19 @@ abstract class BookMTDatabase : RoomDatabase() {
     abstract fun bookmarkDao(): BookmarkDao
 
     companion object {
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE books ADD COLUMN completed INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE books ADD COLUMN position_anchor TEXT")
+                db.execSQL("ALTER TABLE books ADD COLUMN listening_position INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE books ADD COLUMN listening_anchor TEXT")
+                db.execSQL("ALTER TABLE books ADD COLUMN content_revision INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("UPDATE books SET completed = 1 WHERE progress_percent >= 1")
+                db.execSQL("ALTER TABLE bookmarks ADD COLUMN start_anchor TEXT")
+                db.execSQL("ALTER TABLE bookmarks ADD COLUMN end_anchor TEXT")
+                db.execSQL("ALTER TABLE bookmarks ADD COLUMN content_revision INTEGER NOT NULL DEFAULT 1")
+            }
+        }
         /** v2 adds editable description, source file size, and accumulated reading-time columns. */
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {

@@ -69,9 +69,9 @@ fun ReaderToolDialogs(state: ReaderUiState, viewModel: ReaderViewModel, onGoToPa
             AlertDialog(onDismissRequest = viewModel::onDismissOverlay,
                 title = { Text(stringResource(R.string.reader_go_to_page)) },
                 text = { OutlinedTextField(page, { page = it.filter(Char::isDigit).take(8) },
-                    label = { Text("1 – ${state.totalPages}") }, singleLine = true,
+                    label = { Text(if (state.paginationReady) "1 – ${state.totalPages}" else stringResource(R.string.reader_measuring_pages)) }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)) },
-                confirmButton = { TextButton(enabled = target != null && target in 1..state.totalPages, onClick = {
+                confirmButton = { TextButton(enabled = state.paginationReady && target != null && target in 1..state.totalPages, onClick = {
                     target?.let { onGoToPage(it - 1) }; viewModel.onDismissOverlay()
                 }) { Text(stringResource(R.string.reader_go)) } },
                 dismissButton = { TextButton(onClick = viewModel::onDismissOverlay) { Text(stringResource(R.string.action_cancel)) } })

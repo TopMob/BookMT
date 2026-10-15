@@ -41,12 +41,12 @@ com.TopMob.bookmt
   books need a disk-backed parser/cache. A single **absolute character offset**
   addresses any position (progress, bookmarks, TTS cursor).
 - **Extensible parsing:** add a format by implementing `BookParser` and binding it `@IntoSet` in
-  `ParserModule`; `BookParserFactory` dispatches automatically. PDF is a structural placeholder.
+  `ParserModule`; `BookParserFactory` dispatches automatically. PDF uses a separate PdfRenderer screen.
 - **Offline neural TTS:** bundled Supertonic 3 INT8 via sherpa-onnx, Russian F1/M1.
   `ReadAloudUseCase` lazily feeds bounded passages with absolute offsets. One passage
   is synthesized ahead while `AudioTrack` plays; pause retains the session, completion
   releases it. `TtsPlaybackService` owns the foreground notification, media session
-  and wake lock. The reader ViewModel owns the reading job; leaving the reader stops it.
+  and wake lock. The reader ViewModel owns the reading job; leaving the reader stops it. Events carry a book ID and session ID; reading and listening have separate anchors.
   No Android system TTS, runtime downloads or Internet permission. The role-analysis
   interface remains extensible, but the selected voice currently reads every role.
   See `OFFLINE_TTS.md` for model preparation, licensing and validation.
@@ -60,3 +60,19 @@ See [TECHNICAL_AUDIT.md](TECHNICAL_AUDIT.md) for fixes, validation and remaining
 
 > The `ksp` version in `gradle/libs.versions.toml` must track the Kotlin version exactly; bump it if
 > a Gradle sync reports an unresolved KSP artifact.
+
+## Reader engine 1.1
+
+The main path is `BookParser.parseTo` → `DiskBookCache.Writer` → `BookContent` with
+`ChapterCollection` backed by local blocks. `parse` retains the old canonical text for
+legacy anchor migration; it is not the normal reading path. `TextAnchors` captures
+source-relative locations plus context; `PositionMigration` updates old annotations
+and book positions in a Room transaction. Schema 3 preserves versions 1/2 through migrations.
+
+`ReaderPaginator` stores page boundaries instead of book-text copies. `ReaderContent`
+measures the requested block first, then fills the global index. `ReaderRichText`
+uses the same styles and placeholders for measuring and displaying. Page indices are
+cached on disk; source blocks are CRC-checked. Background pagination yields to speech.
+Source files and user annotations are never stored in or removed with this cache.
+
+See [READER_ENGINE.md](READER_ENGINE.md) for compatibility, limits and verification.

@@ -72,6 +72,27 @@ class MarkdownBookParser(
         return chapters.ifEmpty { listOf(RawChapter(DEFAULT_TITLE, stripInline(text))) }
     }
 
+    override suspend fun parseTo(input: InputStream, fileName: String, destination: com.TopMob.bookmt.domain.parser.BookContentDestination): BookContent =
+        withContext(dispatchers.io) {
+            val builder = StructuredBookBuilder(destination)
+            var index = 0; var documentTitle = fileName.substringBeforeLast('.')
+            builder.beginSource("chapter:$index", DEFAULT_TITLE)
+            StreamingTextSource.copy(input).use { source -> source.read { fragment ->
+                val heading = if (fragment.startOfLine && fragment.text.length < 300) HEADING.find(fragment.text) else null
+                if (heading != null) {
+                    if (builder.position > 0) index++
+                    val name = stripInline(heading.groupValues[2].trim())
+                    if (builder.toc.isEmpty()) documentTitle = name
+                    builder.beginSource("chapter:$index", name)
+                    builder.heading(name, builder.position, heading.groupValues[1].length - 1)
+                    builder.startStyle("heading", com.TopMob.bookmt.domain.model.ContentStyle.HEADING, heading.groupValues[1].length)
+                    builder.append(name); builder.endStyle("heading"); builder.newline()
+                } else { builder.append(stripInline(fragment.text)); if (fragment.endOfLine) builder.append("\n") }
+            } }
+            builder.flush()
+            destination.finish(documentTitle, null, com.TopMob.bookmt.domain.model.TableOfContents(builder.toc))
+        }
+
     /** Removes the most common inline Markdown markers for clean prose rendering. */
     private fun stripInline(s: String): String = s
         .replace(Regex("\\*\\*(.+?)\\*\\*"), "$1")

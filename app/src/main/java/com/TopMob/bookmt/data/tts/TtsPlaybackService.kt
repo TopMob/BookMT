@@ -23,6 +23,7 @@ class TtsPlaybackService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var session: MediaSession
     private lateinit var wakeLock: PowerManager.WakeLock
+    private var stoppedNormally = false
 
     override fun onCreate() {
         super.onCreate()
@@ -48,6 +49,7 @@ class TtsPlaybackService : Service() {
                 if (active && !wakeLock.isHeld) wakeLock.acquire()
                 if (!active && wakeLock.isHeld) wakeLock.release()
                 if (state.status in setOf(TtsStatus.IDLE, TtsStatus.STOPPED, TtsStatus.ERROR)) {
+                    stoppedNormally = true
                     ready.value = false
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
@@ -64,6 +66,20 @@ class TtsPlaybackService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == null) {
+            // A fresh playback can arrive between stopSelf() and onDestroy(). Re-enter
+            // foreground before publishing readiness even when Android reuses this instance.
+            if (engine.state.value.status in setOf(TtsStatus.PLAYING, TtsStatus.PREPARING, TtsStatus.PAUSED)) {
+                stoppedNormally = false
+                startForeground(NOTIFICATION, notification(engine.state.value.status))
+                ready.value = true
+            } else {
+                stoppedNormally = true
+                ready.value = false
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
+        }
         when (intent?.action) {
             PAUSE -> engine.pause()
             RESUME -> engine.resume()
@@ -105,7 +121,7 @@ class TtsPlaybackService : Service() {
         scope.cancel()
         if (wakeLock.isHeld) wakeLock.release()
         session.release()
-        if (engine.state.value.status in setOf(TtsStatus.PLAYING, TtsStatus.PREPARING, TtsStatus.PAUSED)) engine.stop()
+        if (!stoppedNormally && engine.state.value.status in setOf(TtsStatus.PLAYING, TtsStatus.PREPARING, TtsStatus.PAUSED)) engine.stop()
         super.onDestroy()
     }
     override fun onBind(intent: Intent?): IBinder? = null

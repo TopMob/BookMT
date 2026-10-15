@@ -52,4 +52,7 @@ data class BookmarkEntity(
 
     @ColumnInfo(name = "timestamp")
     val timestamp: Long,
+    @ColumnInfo(name = "start_anchor") val startAnchor: String? = null,
+    @ColumnInfo(name = "end_anchor") val endAnchor: String? = null,
+    @ColumnInfo(name = "content_revision", defaultValue = "1") val contentRevision: Int = 1,
 )

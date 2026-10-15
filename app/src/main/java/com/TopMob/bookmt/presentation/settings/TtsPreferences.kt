@@ -28,6 +28,10 @@ fun TtsPreferences(settings: ReaderSettings, update: ((ReaderSettings) -> Reader
     }
     Text(stringResource(R.string.tts_speed, settings.ttsSpeed))
     Slider(settings.ttsSpeed, { value -> update { it.copy(ttsSpeed = value) } }, valueRange = 0.75f..1.5f, steps = 14)
+    Text(stringResource(R.string.tts_sentence_pause, settings.ttsSentencePauseMs))
+    Slider(settings.ttsSentencePauseMs.toFloat(), { value -> update { it.copy(ttsSentencePauseMs = value.toInt()) } }, valueRange = 0f..1000f, steps = 19)
+    Text(stringResource(R.string.tts_paragraph_pause, settings.ttsParagraphPauseMs))
+    Slider(settings.ttsParagraphPauseMs.toFloat(), { value -> update { it.copy(ttsParagraphPauseMs = value.toInt()) } }, valueRange = 0f..1500f, steps = 29)
     Text(stringResource(R.string.tts_settings_hint), style = MaterialTheme.typography.bodySmall)
     TextButton(onClick = { license = true }) { Text(stringResource(R.string.tts_license)) }
     if (license) TtsLicenseDialog(onDismiss = { license = false }) {

@@ -1,0 +1,5 @@
+<resources>
+    <string name="tts_resume_saved">Resume saved speech</string>
+    <string name="tts_sentence_pause">Pause between sentences: %d ms</string>
+    <string name="tts_paragraph_pause">Pause between paragraphs: %d ms</string>
+</resources>

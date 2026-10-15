@@ -59,4 +59,9 @@ data class BookEntity(
 
     @ColumnInfo(name = "total_reading_time_ms")
     val totalReadingTimeMs: Long = 0L,
+    @ColumnInfo(name = "completed", defaultValue = "0") val completed: Boolean = false,
+    @ColumnInfo(name = "position_anchor") val positionAnchor: String? = null,
+    @ColumnInfo(name = "listening_position", defaultValue = "0") val listeningPosition: Int = 0,
+    @ColumnInfo(name = "listening_anchor") val listeningAnchor: String? = null,
+    @ColumnInfo(name = "content_revision", defaultValue = "1") val contentRevision: Int = 1,
 )

@@ -32,6 +32,11 @@ interface BookRepository {
 
     suspend fun updateProgress(bookId: Long, progress: Float, position: Int)
 
+    suspend fun saveReadingPosition(bookId: Long, progress: Float, position: Int, anchor: String?, revision: Int) = updateProgress(bookId, progress, position)
+    suspend fun saveListeningPosition(bookId: Long, position: Int, anchor: String?) { }
+    suspend fun setCompleted(bookId: Long, completed: Boolean) { }
+    suspend fun invalidateContent(bookId: Long) { }
+
     suspend fun updateTags(bookId: Long, tags: List<String>)
 
     /** Updates the user-editable card fields (title, author, description, cover, tags). */

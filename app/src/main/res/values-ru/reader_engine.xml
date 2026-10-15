@@ -1,0 +1,4 @@
+<resources>
+    <string name="reader_book_formatting">Оформление текста книги</string>
+    <string name="reader_measuring_pages">Подсчёт страниц…</string>
+</resources>

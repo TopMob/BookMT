@@ -38,10 +38,21 @@ interface BookDao {
         SET progress_percent = :progress,
             last_read_position = :position,
             last_read_timestamp = :timestamp
+            , completed = CASE WHEN :progress >= 1 THEN 1 ELSE completed END
+            , position_anchor = CASE WHEN :position = 0 THEN NULL ELSE position_anchor END
         WHERE id = :bookId
         """,
     )
     suspend fun updateProgress(bookId: Long, progress: Float, position: Int, timestamp: Long)
+
+    @Query("UPDATE books SET progress_percent=:progress, last_read_position=:position, position_anchor=:anchor, content_revision=:revision, last_read_timestamp=:timestamp, completed=CASE WHEN :progress>=1 THEN 1 ELSE completed END WHERE id=:bookId")
+    suspend fun saveReadingPosition(bookId: Long, progress: Float, position: Int, anchor: String?, revision: Int, timestamp: Long)
+
+    @Query("UPDATE books SET listening_position=:position, listening_anchor=:anchor WHERE id=:bookId")
+    suspend fun saveListeningPosition(bookId: Long, position: Int, anchor: String?)
+
+    @Query("UPDATE books SET completed=:completed WHERE id=:bookId")
+    suspend fun setCompleted(bookId: Long, completed: Boolean)
 
     // Room applies the registered TypeConverter to the List<String> parameter.
     @Query("UPDATE books SET tags = :tags WHERE id = :bookId")

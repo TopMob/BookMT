@@ -64,6 +64,16 @@ class OfflineTtsTest {
                     engine.stop()
                     withTimeout(10_000) { playback.join() }
                     assertEquals(TtsStatus.STOPPED, engine.state.value.status)
+                    activity.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+                    engine.prepare(DefaultVoices.assignment, bookId = 25)
+                    val restarted = launch(Dispatchers.Default) {
+                        engine.speak(listOf(TextSegment("Продолжается другая история.", SpeakerRole.NARRATOR, 42)))
+                    }
+                    withTimeout(120_000) { engine.state.first { it.status == TtsStatus.PLAYING } }
+                    assertEquals(25L, engine.state.value.bookId)
+                    assertEquals(42, engine.state.value.currentOffset)
+                    engine.stop()
+                    withTimeout(10_000) { restarted.join() }
                 } finally { engine.release() }
             }
         }

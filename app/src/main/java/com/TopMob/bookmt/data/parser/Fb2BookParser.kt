@@ -21,7 +21,8 @@ import java.io.InputStream
  *  - chapters from each `<section>` in `<body>`, using the section's `<title>` for the chapter name
  *    and section nesting depth for TOC level.
  *
- * Cover-image and inline-formatting extraction are intentionally out of scope for this baseline.
+ * [parse] retains revision-1 text for migration. [parseTo] is the reader path and preserves inline
+ * formatting, nested headings, links and embedded illustrations through [StructuredFb2].
  */
 class Fb2BookParser(
     private val dispatchers: DispatcherProvider,
@@ -53,6 +54,9 @@ class Fb2BookParser(
                 },
             )
         }
+
+    override suspend fun parseTo(input: InputStream, fileName: String, destination: com.TopMob.bookmt.domain.parser.BookContentDestination): BookContent =
+        withContext(dispatchers.io) { StructuredFb2.parse(input, fileName, destination) }
 
     private suspend fun parseInternal(input: InputStream, metadataOnly: Boolean): Parsed {
         return try {

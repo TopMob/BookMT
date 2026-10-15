@@ -5,6 +5,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.*
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -17,6 +20,22 @@ import org.junit.Test
 
 class ReaderNavigationTest {
     @get:Rule val compose = createComposeRule()
+
+    @Test fun structuredFormattingAndSpokenPhraseAreVisibleTogether() {
+        val text = "Первое предложение. Второе предложение."
+        val offset = text.indexOf("Второе")
+        val content = BookContent("Title", null, listOf(Chapter(0, "Chapter", text, 0,
+            spans = listOf(ContentSpan(0, 6, ContentStyle.BOLD)))), TableOfContents.EMPTY)
+        compose.setContent {
+            ReaderContent(content, TextStyle(fontSize = 18.sp), ReaderColors.forTheme(ReaderTheme.DAY), ReadingMode.PAGED,
+                16, 16, 0, 0, {}, { _, _ -> }, {}, {}, Modifier.size(320.dp, 480.dp),
+                spokenSegment = TextSegment(text.substring(offset), SpeakerRole.NARRATOR, offset))
+        }
+        compose.waitUntil(15_000) { compose.onAllNodes(hasText(text)).fetchSemanticsNodes().isNotEmpty() }
+        val annotated = compose.onNode(hasText(text)).fetchSemanticsNode().config[SemanticsProperties.Text].single()
+        assertTrue(annotated.spanStyles.any { it.item.fontWeight == FontWeight.Bold && it.start == 0 && it.end == 6 })
+        assertTrue(annotated.spanStyles.any { it.item.background != Color.Unspecified && it.start == offset && it.end == text.length })
+    }
 
     @Test fun savedPositionAndBookmarkJumpMovePagedSurface() {
         val offset = mutableStateOf(5000)

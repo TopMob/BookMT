@@ -62,6 +62,26 @@ class TxtBookParser(
         return chapters.ifEmpty { listOf(RawChapter(DEFAULT_TITLE, text)) }
     }
 
+    override suspend fun parseTo(input: InputStream, fileName: String, destination: com.TopMob.bookmt.domain.parser.BookContentDestination): BookContent =
+        withContext(dispatchers.io) {
+            val builder = StructuredBookBuilder(destination)
+            var index = 0
+            builder.beginSource("chapter:$index", DEFAULT_TITLE)
+            StreamingTextSource.copy(input).use { source -> source.read { fragment ->
+                if (fragment.startOfLine && fragment.text.length < 300 && CHAPTER_HEADING.matches(fragment.text.trim())) {
+                    if (builder.position > 0) index++
+                    builder.beginSource("chapter:$index", fragment.text.trim())
+                    builder.heading(fragment.text.trim(), builder.position, 0)
+                }
+                builder.append(fragment.text)
+                if (fragment.endOfLine) builder.append("\n")
+            } }
+            builder.flush()
+            if (builder.toc.isEmpty()) builder.heading(DEFAULT_TITLE, 0, 0)
+            destination.finish(fileName.substringBeforeLast('.').ifBlank { fileName }, null,
+                com.TopMob.bookmt.domain.model.TableOfContents(builder.toc))
+        }
+
     private companion object {
         const val DEFAULT_TITLE = "Text"
         val CHAPTER_HEADING = Regex(

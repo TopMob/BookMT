@@ -87,21 +87,23 @@ fun ReaderScreen(
     var showTtsLicense by remember { mutableStateOf(false) }
     var startAfterLicense by remember { mutableStateOf(false) }
     var requestedNotification by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var resumeSavedSpeech by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val notificationPermission = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-    ) { viewModel.onPlayTts() }
-    fun startSpeech() {
+    ) { viewModel.onPlayTts(resumeSavedSpeech) }
+    fun startSpeech(resumeSaved: Boolean = false) {
+        resumeSavedSpeech = resumeSaved
         if (android.os.Build.VERSION.SDK_INT >= 33 && !requestedNotification &&
             androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
             != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             requestedNotification = true
             notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-        } else viewModel.onPlayTts()
+        } else viewModel.onPlayTts(resumeSaved)
     }
     LaunchedEffect(state.settings.ttsLicenseAccepted, startAfterLicense) {
         if (state.settings.ttsLicenseAccepted && startAfterLicense) {
             startAfterLicense = false
-            startSpeech()
+            startSpeech(resumeSavedSpeech)
         }
     }
     if (showTtsLicense) com.TopMob.bookmt.presentation.settings.TtsLicenseDialog(
@@ -147,6 +149,8 @@ fun ReaderScreen(
             onSelection = { selection = it },
             onJump = viewModel::jumpToOffset,
             onPageChanged = viewModel::onPageChanged,
+            onContentError = viewModel::onContentError,
+            onRebuildCache = viewModel::onRebuildReadingCache,
             modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars),
             onScrollOffsetChanged = viewModel::onScrollOffsetChanged,
             onToggleControls = viewModel::onToggleControls,
@@ -211,10 +215,19 @@ fun ReaderScreen(
                     when (state.tts.status) {
                         TtsStatus.PLAYING, TtsStatus.PREPARING -> viewModel.onPauseTts()
                         TtsStatus.PAUSED -> viewModel.onResumeTts()
-                        else -> if (state.settings.ttsLicenseAccepted) startSpeech() else { showTtsLicense = true }
+                        else -> {
+                            resumeSavedSpeech = false
+                            if (state.settings.ttsLicenseAccepted) startSpeech() else { showTtsLicense = true }
+                        }
                     }
                 },
                 onStopTts = viewModel::onStopTts,
+                paginationReady = state.paginationReady,
+                onResumeSavedTts = if ((state.book?.listeningPosition ?: 0) > 0 && state.book?.listeningPosition != state.currentOffset &&
+                    state.tts.status !in setOf(TtsStatus.PLAYING, TtsStatus.PAUSED, TtsStatus.PREPARING)) {
+                    { resumeSavedSpeech = true
+                        if (state.settings.ttsLicenseAccepted) startSpeech(true) else { showTtsLicense = true } }
+                } else null,
             )
         }
         if (state.autoPaging) TextButton(onClick = viewModel::stopAutoPaging,
@@ -289,6 +302,8 @@ private fun ReaderSurface(
     onPageChanged: (Int, Int) -> Unit,
     onScrollOffsetChanged: (Int) -> Unit,
     onToggleControls: () -> Unit,
+    onContentError: (Throwable) -> Unit,
+    onRebuildCache: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val content = state.content
@@ -325,6 +340,11 @@ private fun ReaderSurface(
             onOffsetChanged = onScrollOffsetChanged,
             onToggleControls = onToggleControls,
             modifier = modifier,
+            formatting = state.settings.bookFormatting,
+            spokenSegment = state.tts.currentSegment.takeIf { state.tts.status in setOf(TtsStatus.PLAYING, TtsStatus.PAUSED, TtsStatus.PREPARING) },
+            onContentError = onContentError,
+            onRebuildCache = onRebuildCache,
+            prioritizeAudio = state.tts.status in setOf(TtsStatus.PLAYING, TtsStatus.PREPARING),
         )
     }
 }

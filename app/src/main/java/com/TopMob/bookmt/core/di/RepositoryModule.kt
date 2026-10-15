@@ -46,8 +46,11 @@ object RepositoryModule {
         contentResolver: ContentResolver,
         dispatchers: DispatcherProvider,
         @ApplicationContext context: Context,
+        database: com.TopMob.bookmt.data.local.BookMTDatabase,
+        bookmarkDao: BookmarkDao,
     ): BookRepository = BookRepositoryImpl(bookDao, parserFactory, contentResolver, dispatchers,
-        storageDir = java.io.File(context.filesDir, "books"))
+        storageDir = java.io.File(context.filesDir, "books"), cacheDir = java.io.File(context.cacheDir, "reader-documents"),
+        bookmarkDao = bookmarkDao, database = database)
 
     @Provides
     @Singleton

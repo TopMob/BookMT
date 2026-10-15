@@ -16,7 +16,9 @@ import java.net.URLDecoder
 import java.util.zip.ZipInputStream
 
 /**
- * EPUB (.epub) parser implemented with only the platform's ZIP + XML facilities — no third-party
+ * [parseTo] is the normal reading path: random-access ZIP, structured blocks and local resources.
+ * [parse] below preserves the original revision-1 canonical text solely for position migration.
+ * The legacy EPUB (.epub) parser uses the platform's ZIP + XML facilities — no third-party
  * dependency. An EPUB is a ZIP whose `META-INF/container.xml` points at an OPF package file; the OPF
  * lists the reading order (`<spine>`) of XHTML documents. We:
  *  1. load every zip entry into memory (EPUBs are typically a few MB),
@@ -27,6 +29,7 @@ import java.util.zip.ZipInputStream
  */
 class EpubBookParser(
     private val dispatchers: DispatcherProvider,
+    private val temporaryDirectory: java.io.File? = null,
 ) : BookParser {
 
     override val format: BookFormat = BookFormat.EPUB
@@ -38,21 +41,16 @@ class EpubBookParser(
     override suspend fun parseMetadata(input: InputStream, fileName: String): BookMetadata =
         withContext(dispatchers.io) {
             try {
-                val entries = readZip(input)
-                val opfPath = containerOpfPath(entries)
-                val opf = opfPath?.let { entries[it]?.let { bytes -> parseOpf(bytes) } }
-                BookMetadata(
-                    title = opf?.title?.takeIf { it.isNotBlank() }
-                        ?: fileName.substringBeforeLast('.'),
-                    author = opf?.author,
-                    coverImageBytes = opf?.coverHref?.let { entries[resolve(opfPath?.substringBeforeLast('/', "").orEmpty(), it)] },
-                )
+                StructuredEpub.metadata(input, fileName, temporaryDirectory)
             } catch (t: Exception) {
                 if (t is kotlinx.coroutines.CancellationException) throw t
                 // Import must never fail hard on metadata; fall back to the file name.
                 BookMetadata(title = fileName.substringBeforeLast('.'))
             }
         }
+
+    override suspend fun parseTo(input: InputStream, fileName: String, destination: com.TopMob.bookmt.domain.parser.BookContentDestination): BookContent =
+        withContext(dispatchers.io) { StructuredEpub.parse(input, fileName, destination, temporaryDirectory) }
 
     override suspend fun parse(input: InputStream, fileName: String): BookContent =
         withContext(dispatchers.io) {

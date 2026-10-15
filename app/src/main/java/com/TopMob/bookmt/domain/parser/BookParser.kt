@@ -29,11 +29,32 @@ interface BookParser {
     suspend fun parseMetadata(input: InputStream, fileName: String): BookMetadata
 
     /**
-     * Fully parses the book into chapters + table of contents. Called lazily when a book is opened.
+     * Legacy in-memory representation (revision 1 for the original text parsers). Retained to
+     * recover anchors when upgrading existing positions. New reader code must use [parseTo].
      *
      * @throws BookParseException if the content is malformed or unsupported.
      */
     suspend fun parse(input: InputStream, fileName: String): BookContent
+
+    /** Streaming destination used by the reader's persistent content cache. */
+    suspend fun parseTo(input: InputStream, fileName: String, destination: BookContentDestination): BookContent {
+        val content = parse(input, fileName)
+        return destination.import(content)
+    }
+}
+
+interface BookContentDestination {
+    fun append(chapter: com.TopMob.bookmt.domain.model.Chapter)
+    fun resource(id: String, input: InputStream, maxBytes: Long = 20L * 1024 * 1024)
+    fun target(id: String, offset: Int)
+    fun targetOffset(id: String): Int? = null
+    val length: Int
+    fun finish(title: String, author: String?, toc: com.TopMob.bookmt.domain.model.TableOfContents): BookContent
+    fun import(content: BookContent): BookContent {
+        content.chapters.forEach(::append)
+        content.targets.forEach { (id, offset) -> target(id, offset) }
+        return finish(content.title, content.author, content.tableOfContents)
+    }
 }
 
 /** Minimal metadata extracted during import. */
