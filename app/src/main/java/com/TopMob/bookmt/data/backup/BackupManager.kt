@@ -22,7 +22,7 @@ import javax.inject.Inject
  * expected to relaunch the process after a successful [import].
  */
 class BackupManager @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val database: BookMTDatabase,
     private val dispatchers: DispatcherProvider,
 ) {

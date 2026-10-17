@@ -74,13 +74,7 @@ class BookRepositoryImpl(
             } ?: uri
             bookDao.getByUri(storedUri)?.let { return@withContext Resource.Success(it.toDomain()) }
             val metadata = openStream(storedUri).use { parser.parseMetadata(it, fileName) }
-            val cover = metadata.coverImageBytes?.takeIf { it.isNotEmpty() }?.let { bytes ->
-                storageDir?.parentFile?.let { parent ->
-                    java.io.File(parent, "covers").apply { mkdirs() }.let { dir ->
-                        java.io.File(dir, java.util.UUID.randomUUID().toString() + ".jpg").apply { writeBytes(bytes) }.absolutePath
-                    }
-                }
-            }
+            val cover = saveCoverImage(metadata.coverImageBytes)
 
             val entity = Book(
                 uri = storedUri,
@@ -233,6 +227,29 @@ class BookRepositoryImpl(
                 val file = Uri.parse(book.uri).path?.let { java.io.File(it).canonicalFile }
                 if (file?.parentFile == owned) file.delete()
             }
+            val coverPath = book.coverImagePath
+            if (coverPath != null && storageDir?.parentFile != null) {
+                runCatching {
+                    val coversDir = java.io.File(storageDir.parentFile, "covers").canonicalFile
+                    val coverFile = java.io.File(coverPath).canonicalFile
+                    if (coverFile.isFile && coverFile.parentFile == coversDir) {
+                        coverFile.delete()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun saveCoverImage(bytes: ByteArray?): String? {
+        val nonNullBytes = bytes?.takeIf { it.isNotEmpty() } ?: return null
+        val parent = storageDir?.parentFile ?: return null
+        val coversDir = java.io.File(parent, "covers").apply { mkdirs() }
+        val file = java.io.File(coversDir, "${java.util.UUID.randomUUID()}.jpg")
+        return try {
+            file.writeBytes(nonNullBytes)
+            file.absolutePath
+        } catch (_: Exception) {
+            null
         }
     }
 

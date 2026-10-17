@@ -16,6 +16,7 @@ import com.TopMob.bookmt.domain.model.BookmarkType
 import com.TopMob.bookmt.domain.repository.BookRepository
 import com.TopMob.bookmt.domain.usecase.ManageBookmarksUseCase
 import com.TopMob.bookmt.presentation.navigation.Screen
+import com.TopMob.bookmt.core.common.DispatcherProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
@@ -32,9 +33,10 @@ data class PdfReaderState(val book: Book? = null, val page: Int = 0, val count: 
 @HiltViewModel
 class PdfReaderViewModel @Inject constructor(
     savedState: SavedStateHandle,
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val repository: BookRepository,
     private val bookmarks: ManageBookmarksUseCase,
+    private val dispatchers: DispatcherProvider,
 ) : ViewModel() {
     private val id: Long = checkNotNull(savedState[Screen.ARG_BOOK_ID])
     private val initialOffset: Int = savedState[Screen.ARG_OFFSET] ?: -1
@@ -51,7 +53,7 @@ class PdfReaderViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val book = repository.prepareOffline(repository.getBook(id) ?: error("Book not found"))
-                val count = withContext(Dispatchers.IO) {
+                val count = withContext(dispatchers.io) {
                     mutex.withLock {
                         val parsedUri = Uri.parse(book.uri)
                         val file = if (parsedUri.scheme == "file" && parsedUri.path != null && File(parsedUri.path!!).isFile) {
@@ -90,7 +92,7 @@ class PdfReaderViewModel @Inject constructor(
         renderJob = viewModelScope.launch {
             var generatedBitmap: Bitmap? = null
             try {
-                generatedBitmap = withContext(Dispatchers.Default) {
+                generatedBitmap = withContext(dispatchers.default) {
                     mutex.withLock {
                         val pdf = renderer ?: error("PDF closed")
                         pdf.openPage(page).use { source ->
@@ -143,7 +145,7 @@ class PdfReaderViewModel @Inject constructor(
     override fun onCleared() {
         pause()
         mutable.value.bitmap?.recycle()
-        viewModelScope.launch(NonCancellable + Dispatchers.IO) {
+        viewModelScope.launch(NonCancellable + dispatchers.io) {
             mutex.withLock { renderer?.close(); renderer = null; temporary?.delete() }
         }
         super.onCleared()
