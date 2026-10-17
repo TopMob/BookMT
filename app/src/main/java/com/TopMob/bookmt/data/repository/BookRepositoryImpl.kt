@@ -90,7 +90,7 @@ class BookRepositoryImpl(
                 format = parser.format.takeIf { it != BookFormat.UNKNOWN }
                     ?: BookFormat.fromFileName(fileName),
                 addedTimestamp = now(),
-                fileSizeBytes = if (storedUri.startsWith("file:")) java.io.File(Uri.parse(storedUri).path!!).length() else fileSizeOf(uri),
+                fileSizeBytes = if (storedUri.startsWith("file:")) Uri.parse(storedUri).path?.let { java.io.File(it).length() } ?: 0L else fileSizeOf(uri),
             ).toEntity()
 
             val id = bookDao.insert(entity)
@@ -224,11 +224,12 @@ class BookRepositoryImpl(
 
     override suspend fun deleteBook(bookId: Long) {
         withContext(dispatchers.io) {
-            val book = bookDao.getById(bookId)
-            if (cachedContent?.key?.uri == book?.uri) cachedContent = null
+            val book = bookDao.getById(bookId) ?: return@withContext
+            if (cachedContent?.key?.uri == book.uri) cachedContent = null
             bookDao.deleteById(bookId)
+            val remaining = bookDao.getByUri(book.uri)
             val owned = storageDir?.canonicalFile
-            if (book != null && owned != null && Uri.parse(book.uri).scheme == "file") {
+            if (remaining == null && owned != null && Uri.parse(book.uri).scheme == "file") {
                 val file = Uri.parse(book.uri).path?.let { java.io.File(it).canonicalFile }
                 if (file?.parentFile == owned) file.delete()
             }

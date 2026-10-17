@@ -82,7 +82,11 @@ class BackupManager @Inject constructor(
             ZipInputStream(input.buffered()).use { zip ->
                 while (true) {
                     val entry = zip.nextEntry ?: break
-                    check((entry.name in allowedEntries || assetEntry(entry.name)) && !entry.isDirectory) { "Unknown backup entry: ${entry.name}" }
+                    if (entry.isDirectory) {
+                        zip.closeEntry()
+                        continue
+                    }
+                    check(entry.name in allowedEntries || assetEntry(entry.name)) { "Unknown backup entry: ${entry.name}" }
                     if ((entry.name in allowedEntries || assetEntry(entry.name)) && !entry.isDirectory) {
                         check(seen.add(entry.name)) { "Duplicate backup entry: ${entry.name}" }
                         check(seen.size <= 100000) { "Too many backup entries" }
@@ -182,30 +186,39 @@ class BackupManager @Inject constructor(
         fun applyPendingRestore(context: Context) {
             val pending = File(context.filesDir, PENDING_DIR)
             if (!pending.isDirectory) return
-            val assets = pending.walkTopDown().filter { it.isFile }
-                .map { it.relativeTo(pending).invariantSeparatorsPath }.filter(::assetEntry).toList()
-            // Install referenced assets before replacing the database that points to them.
-            for (entry in assets + allowedEntries) {
-                val source = File(pending, entry)
-                if (!source.isFile) continue
-                val target = if (entry == DB_ENTRY) context.getDatabasePath(Constants.DATABASE_NAME)
-                    else File(context.filesDir, entry)
-                target.parentFile?.mkdirs()
-                val atomic = android.util.AtomicFile(target)
-                val output = atomic.startWrite()
-                try {
-                    source.inputStream().use { it.copyTo(output) }
-                    atomic.finishWrite(output)
-                } catch (e: Exception) {
-                    atomic.failWrite(output)
-                    throw e
+            try {
+                val assets = pending.walkTopDown().filter { it.isFile }
+                    .map { it.relativeTo(pending).invariantSeparatorsPath }.filter(::assetEntry).toList()
+                // Install referenced assets before replacing the database that points to them.
+                for (entry in assets + allowedEntries) {
+                    val source = File(pending, entry)
+                    if (!source.isFile) continue
+                    val target = if (entry == DB_ENTRY) context.getDatabasePath(Constants.DATABASE_NAME)
+                        else File(context.filesDir, entry)
+                    target.parentFile?.mkdirs()
+                    if (entry == DB_ENTRY) {
+                        File(target.path + "-wal").delete()
+                        File(target.path + "-shm").delete()
+                    }
+                    val atomic = android.util.AtomicFile(target)
+                    val output = atomic.startWrite()
+                    try {
+                        source.inputStream().use { it.copyTo(output) }
+                        atomic.finishWrite(output)
+                    } catch (e: Exception) {
+                        atomic.failWrite(output)
+                        throw e
+                    }
+                    if (entry == DB_ENTRY) {
+                        File(target.path + "-wal").delete()
+                        File(target.path + "-shm").delete()
+                    }
                 }
-                if (entry == DB_ENTRY) {
-                    File(target.path + "-wal").delete()
-                    File(target.path + "-shm").delete()
-                }
+            } catch (e: Exception) {
+                android.util.Log.e("BackupManager", "Failed to apply restore, aborting to prevent boot loop", e)
+            } finally {
+                pending.deleteRecursively()
             }
-            pending.deleteRecursively()
         }
     }
 }

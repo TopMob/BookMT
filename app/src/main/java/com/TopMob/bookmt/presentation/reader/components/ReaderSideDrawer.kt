@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
@@ -168,7 +169,7 @@ fun TableOfContentsPanel(
         )
         Spacer(Modifier.padding(4.dp))
         LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(items = entries, key = { it.offset }) { entry ->
+            itemsIndexed(items = entries, key = { index, entry -> "${entry.offset}_${entry.level}_$index" }) { _, entry ->
                 Text(
                     text = entry.title,
                     style = MaterialTheme.typography.bodyMedium,

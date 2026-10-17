@@ -4,6 +4,8 @@ import android.app.*
 import android.content.Intent
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
+import android.content.pm.ServiceInfo
+import androidx.core.app.ServiceCompat
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -40,13 +42,13 @@ class TtsPlaybackService : Service() {
         }
         wakeLock = (getSystemService(POWER_SERVICE) as PowerManager)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "BookMT:ReadAloud")
-        startForeground(NOTIFICATION, notification(engine.state.value.status))
+        startPlaybackForeground(engine.state.value.status)
         ready.value = true
         scope.launch {
             engine.state.collect { state ->
                 val active = state.status == TtsStatus.PLAYING || state.status == TtsStatus.PREPARING
-                // Continuous user-started playback; always released on pause/stop/destroy.
-                if (active && !wakeLock.isHeld) wakeLock.acquire()
+                // Continuous user-started playback; safety timeout of 60 minutes prevents leaks.
+                if (active && !wakeLock.isHeld) wakeLock.acquire(60 * 60 * 1000L)
                 if (!active && wakeLock.isHeld) wakeLock.release()
                 if (state.status in setOf(TtsStatus.IDLE, TtsStatus.STOPPED, TtsStatus.ERROR)) {
                     stoppedNormally = true
@@ -65,19 +67,29 @@ class TtsPlaybackService : Service() {
         }
     }
 
+    private fun startPlaybackForeground(status: TtsStatus) {
+        val notif = notification(status)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ServiceCompat.startForeground(this, NOTIFICATION, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+        } else {
+            startForeground(NOTIFICATION, notif)
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == null) {
-            // A fresh playback can arrive between stopSelf() and onDestroy(). Re-enter
-            // foreground before publishing readiness even when Android reuses this instance.
-            if (engine.state.value.status in setOf(TtsStatus.PLAYING, TtsStatus.PREPARING, TtsStatus.PAUSED)) {
+            val isPlaybackActive = engine.state.value.status in setOf(TtsStatus.PLAYING, TtsStatus.PREPARING, TtsStatus.PAUSED)
+            // Android 8.0+ requires startForeground within 5 seconds of startForegroundService
+            startPlaybackForeground(engine.state.value.status)
+            if (isPlaybackActive) {
                 stoppedNormally = false
-                startForeground(NOTIFICATION, notification(engine.state.value.status))
                 ready.value = true
             } else {
                 stoppedNormally = true
                 ready.value = false
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
+                return START_NOT_STICKY
             }
         }
         when (intent?.action) {

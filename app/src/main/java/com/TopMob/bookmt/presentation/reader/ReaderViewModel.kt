@@ -38,7 +38,7 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class ReaderViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
+    private val savedStateHandle: SavedStateHandle,
     private val openBook: OpenBookUseCase,
     private val updateProgress: UpdateReadingProgressUseCase,
     private val manageBookmarks: ManageBookmarksUseCase,
@@ -134,6 +134,7 @@ class ReaderViewModel @Inject constructor(
                 val explicit = (if (hasLoaded) readingPosition else initialOffset.takeIf { it >= 0 })?.let { offset ->
                     if (book?.contentRevision != content.revision) content.relocatedOffsets[offset] ?: offset else offset
                 }
+                savedStateHandle[Screen.ARG_OFFSET] = -1
                 val restored = kotlinx.coroutines.withContext(dispatchers.io) {
                     com.TopMob.bookmt.domain.model.TextAnchors.resolve(content, refreshed?.positionAnchor, refreshed?.lastReadPosition ?: 0).offset
                 }
@@ -221,7 +222,7 @@ class ReaderViewModel @Inject constructor(
     private suspend fun persistProgress(offset: Int, length: Int) {
         try {
             val state = _uiState.value
-            val progress = if (!state.isLoading && state.paginationReady && state.totalPages > 0 && state.currentPage == state.totalPages && state.content != null && state.currentOffset == offset && ttsJob?.isActive != true) 1f
+            val progress = if (!state.isLoading && state.paginationReady && state.totalPages > 0 && state.currentPage == state.totalPages && state.content != null && state.currentOffset == offset && ttsJob?.isActive != true && (length <= 0 || offset >= length * 0.75f)) 1f
                 else if (length > 0) (offset.toFloat() / length).coerceIn(0f, 1f) else 0f
             val anchor = kotlinx.coroutines.withContext(dispatchers.io) { state.content?.let { com.TopMob.bookmt.domain.model.TextAnchors.capture(it, offset)?.encode() } }
             bookRepository.saveReadingPosition(bookId, progress, offset, anchor, state.content?.revision ?: 2)
@@ -367,9 +368,6 @@ class ReaderViewModel @Inject constructor(
                 val offset = if (resumeSaved && saved != null) kotlinx.coroutines.withContext(dispatchers.io) {
                     com.TopMob.bookmt.domain.model.TextAnchors.resolve(content, saved.listeningAnchor, saved.listeningPosition).offset
                 } else visibleOffset
-                if (resumeSaved && offset != visibleOffset) {
-                    moveToOffset(offset)
-                }
                 readAloud.prepare(DefaultVoices.forSettings(settings), bookId)
                 speechSession = readAloud.state.value.sessionId
                 readAloud.start(content, offset, settings.ttsSentencePauseMs, settings.ttsParagraphPauseMs)

@@ -53,12 +53,17 @@ class PdfReaderViewModel @Inject constructor(
                 val book = repository.prepareOffline(repository.getBook(id) ?: error("Book not found"))
                 val count = withContext(Dispatchers.IO) {
                     mutex.withLock {
-                        // SAF providers may return pipes; PdfRenderer requires a seekable descriptor.
-                        val file = File.createTempFile("reader-", ".pdf", context.cacheDir)
-                        temporary = file
-                        context.contentResolver.openInputStream(Uri.parse(book.uri))?.use { input ->
-                            file.outputStream().use { input.copyTo(it) }
-                        } ?: error("Cannot open PDF")
+                        val parsedUri = Uri.parse(book.uri)
+                        val file = if (parsedUri.scheme == "file" && parsedUri.path != null && File(parsedUri.path!!).isFile) {
+                            File(parsedUri.path!!)
+                        } else {
+                            val temp = File.createTempFile("reader-", ".pdf", context.cacheDir)
+                            temporary = temp
+                            context.contentResolver.openInputStream(parsedUri)?.use { input ->
+                                temp.outputStream().use { input.copyTo(it) }
+                            } ?: error("Cannot open PDF")
+                            temp
+                        }
                         val descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
                         val pdf = try { PdfRenderer(descriptor) } catch (e: Exception) { descriptor.close(); throw e }
                         renderer = pdf
@@ -67,7 +72,9 @@ class PdfReaderViewModel @Inject constructor(
                 }
                 require(count > 0) { "PDF has no pages" }
                 mutable.update { it.copy(book = book, count = count) }
-                goTo(initialOffset.takeIf { it >= 0 } ?: book.lastReadPosition)
+                val targetPage = initialOffset.takeIf { it >= 0 } ?: book.lastReadPosition
+                savedState[Screen.ARG_OFFSET] = -1
+                goTo(targetPage)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { mutable.update { it.copy(loading = false, error = e.message) } }
         }
@@ -77,10 +84,13 @@ class PdfReaderViewModel @Inject constructor(
         if (mutable.value.count == 0) return
         val page = index.coerceIn(0, mutable.value.count - 1)
         renderJob?.cancel()
+        val oldBitmap = mutable.value.bitmap
         mutable.update { it.copy(page = page, loading = true, bitmap = null, error = null) }
+        oldBitmap?.recycle()
         renderJob = viewModelScope.launch {
+            var generatedBitmap: Bitmap? = null
             try {
-                val bitmap = withContext(Dispatchers.Default) {
+                generatedBitmap = withContext(Dispatchers.Default) {
                     mutex.withLock {
                         val pdf = renderer ?: error("PDF closed")
                         pdf.openPage(page).use { source ->
@@ -97,10 +107,17 @@ class PdfReaderViewModel @Inject constructor(
                     }
                 }
                 ensureActive()
-                mutable.update { it.copy(bitmap = bitmap, loading = false) }
+                val prev = mutable.value.bitmap
+                mutable.update { it.copy(bitmap = generatedBitmap, loading = false) }
+                prev?.recycle()
                 repository.updateProgress(id, (page + 1f) / mutable.value.count, page)
-            } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { mutable.update { it.copy(loading = false, error = e.message) } }
+            } catch (e: CancellationException) {
+                generatedBitmap?.recycle()
+                throw e
+            } catch (e: Exception) {
+                generatedBitmap?.recycle()
+                mutable.update { it.copy(loading = false, error = e.message) }
+            }
         }
     }
 
@@ -125,6 +142,7 @@ class PdfReaderViewModel @Inject constructor(
     }
     override fun onCleared() {
         pause()
+        mutable.value.bitmap?.recycle()
         viewModelScope.launch(NonCancellable + Dispatchers.IO) {
             mutex.withLock { renderer?.close(); renderer = null; temporary?.delete() }
         }

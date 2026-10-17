@@ -184,8 +184,15 @@ internal object StructuredEpub {
                     XmlPullParser.TEXT -> if (capture && labels.isNotEmpty()) labels.last().append(parser.text)
                     XmlPullParser.END_TAG -> when (parser.local()) {
                         "text" -> capture = false
-                        "navPoint" -> { val t = targets.removeAt(targets.lastIndex); val l = labels.removeAt(labels.lastIndex).toString().trim(); val level = levels.removeAt(levels.lastIndex)
-                            if (t != null && l.isNotBlank()) result += Triple(l, t, level); depth-- }
+                        "navPoint" -> {
+                            if (targets.isNotEmpty() && labels.isNotEmpty() && levels.isNotEmpty()) {
+                                val t = targets.removeAt(targets.lastIndex)
+                                val l = labels.removeAt(labels.lastIndex).toString().trim()
+                                val level = levels.removeAt(levels.lastIndex)
+                                if (t != null && l.isNotBlank()) result += Triple(l, t, level)
+                            }
+                            if (depth > 0) depth--
+                        }
                     }
                 }; parser.next()
             }

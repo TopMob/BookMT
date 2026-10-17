@@ -270,11 +270,12 @@ fun ReaderContent(
 
             val scrollController = remember(list, scope) {
                 object {
+                    private val lock = Any()
                     private var pendingDelta = 0f
                     private var isRunning = false
 
                     fun scroll(delta: Float, maxPending: Float) {
-                        synchronized(this) {
+                        synchronized(lock) {
                             pendingDelta = (pendingDelta + delta).coerceIn(-maxPending, maxPending)
                             if (isRunning) return
                             isRunning = true
@@ -283,7 +284,7 @@ fun ReaderContent(
                             try {
                                 while (true) {
                                     val step: Float
-                                    synchronized(this@object) {
+                                    synchronized(lock) {
                                         step = pendingDelta
                                         pendingDelta = 0f
                                     }
@@ -298,7 +299,7 @@ fun ReaderContent(
                                     )
                                 }
                             } finally {
-                                synchronized(this@object) {
+                                synchronized(lock) {
                                     isRunning = false
                                 }
                             }
@@ -371,14 +372,16 @@ fun ReaderContent(
                 ReaderTapZone.LEFT -> turn(-1); ReaderTapZone.RIGHT -> turn(1); ReaderTapZone.CENTER -> onToggleControls()
             } }
             if (mode == ReadingMode.PAGED) HorizontalPager(pager, modifier = Modifier.fillMaxSize()) { index ->
-                ReaderPageText(pages[index], textStyle, bookmarks, searchResults, onSelection, tap,
+                val page = pages.getOrNull(index) ?: return@HorizontalPager
+                ReaderPageText(page, textStyle, bookmarks, searchResults, onSelection, tap,
                     Modifier.fillMaxSize().padding(horizontal = horizontalPadding.dp, vertical = verticalPadding.dp),
                     formatting, height, { link = it }, { path, alt -> image = path to alt }, pageError, spokenSegment,
                     colors.ttsHighlight)
             } else LazyColumn(state = list, modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = horizontalPadding.dp, vertical = verticalPadding.dp)) {
-                items(pages.size, key = { pages[it].startOffset }) { index ->
-                    ReaderPageText(pages[index], textStyle, bookmarks, searchResults, onSelection, tap, Modifier.fillMaxWidth(),
+                items(pages.size, key = { pages.getOrNull(it)?.startOffset ?: it }) { index ->
+                    val page = pages.getOrNull(index) ?: return@items
+                    ReaderPageText(page, textStyle, bookmarks, searchResults, onSelection, tap, Modifier.fillMaxWidth(),
                         formatting, height, { link = it }, { path, alt -> image = path to alt }, pageError, spokenSegment,
                         colors.ttsHighlight)
                 }

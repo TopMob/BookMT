@@ -312,9 +312,10 @@ fun ReaderScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    if (state.tts.activeVoiceId != null) {
+                    val activeVoice = state.tts.activeVoiceId
+                    if (activeVoice != null) {
                         Text(
-                            text = com.TopMob.bookmt.data.tts.DefaultVoices.name(state.tts.activeVoiceId),
+                            text = com.TopMob.bookmt.data.tts.DefaultVoices.name(activeVoice),
                             style = MaterialTheme.typography.labelSmall,
                             color = colors.text,
                             modifier = Modifier.padding(end = 4.dp)
