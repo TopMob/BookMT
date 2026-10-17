@@ -9,7 +9,7 @@ import javax.inject.Inject
 class ReadAloudUseCase @Inject constructor(private val engine: TtsEngine) {
     val state get() = engine.state
     suspend fun prepare(assignment: VoiceAssignment, bookId: Long? = null) = engine.prepare(assignment, bookId)
-    suspend fun start(content: BookContent, fromOffset: Int, sentencePauseMs: Int = 220, paragraphPauseMs: Int = 550) = engine.speak(flow {
+    suspend fun start(content: BookContent, fromOffset: Int, sentencePauseMs: Int = 320, paragraphPauseMs: Int = 650) = engine.speak(flow {
         val first = content.chapterIndexAt(fromOffset).coerceAtLeast(0)
         for (index in first until content.chapters.size) {
             val chapter = content.chapters[index]
@@ -24,12 +24,23 @@ class ReadAloudUseCase @Inject constructor(private val engine: TtsEngine) {
                 val batch = raw.trimEnd().replace('\uFFFC', ' ').replace("\u00AD", "")
                 var next = end
                 while (next < text.length && text[next].isWhitespace()) next++
-                val paragraph = '\n' in text.substring(cursor, next) || (end == text.length &&
-                    (index == content.chapters.lastIndex || content.descriptor(index + 1)?.sourceId != chapter.sourceId))
-                val sentence = raw.trimEnd().trimEnd('"', '\'', '»', '”', ')', ']').lastOrNull() in setOf('.', '!', '?', '…')
-                val pause = when { paragraph -> paragraphPauseMs; sentence -> sentencePauseMs; else -> 60 }
+                val contentEnd = cursor + raw.trimEnd().length
+                val hasNewline = '\n' in text.substring(contentEnd, next)
+                val stripped = raw.trimEnd().trimEnd('"', '\'', '»', '«', '”', '“', '’', '‘', '›', '‹', ')', ']', '}')
+                val sentence = stripped.lastOrNull() in setOf('.', '!', '?', '…')
+                val clause = stripped.lastOrNull() in setOf(':', ';', '—', '–', ',')
+                val paragraph = (hasNewline && (sentence || clause || next >= text.length ||
+                    text.substring(contentEnd, next).count { it == '\n' } >= 2 ||
+                    (next < text.length && (text[next] == '—' || text[next] == '–' || text[next].isUpperCase())))) ||
+                    (end == text.length && (index == content.chapters.lastIndex || content.descriptor(index + 1)?.sourceId != chapter.sourceId))
+                val pause = when {
+                    paragraph -> paragraphPauseMs
+                    sentence -> sentencePauseMs
+                    clause -> (sentencePauseMs * 0.65f).toInt().coerceAtLeast(140)
+                    else -> 80
+                }
                 if (batch.any(Char::isLetterOrDigit)) emit(TextSegment(batch, SpeakerRole.NARRATOR,
-                    chapter.startOffset + cursor, sourceEndOffset = chapter.startOffset + cursor + raw.trimEnd().length,
+                    chapter.startOffset + cursor, sourceEndOffset = contentEnd,
                     pauseAfterMs = pause))
                 cursor = next
             }
@@ -50,7 +61,7 @@ internal fun speechBoundary(text: String, start: Int, limit: Int = 240): Int {
         if (c == '\n' && i > start) return i + 1
         if (c in ".!?…") {
             var end = i + 1
-            while (end < text.length && text[end] in ".!?…\"'»”)]") end++
+            while (end < text.length && text[end] in ".!?…\"'»«”\"’‘›‹)]}") end++
             val boundary = end == text.length || text[end].isWhitespace()
             val word = text.substring(start, i).takeLastWhile { it.isLetter() }.lowercase()
             val abbreviation = c == '.' && ((word.length == 1 && word.firstOrNull()?.isLetter() == true) || word in ABBREVIATIONS)

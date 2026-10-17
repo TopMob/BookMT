@@ -1,6 +1,7 @@
 package com.TopMob.bookmt.presentation.reader
 
 import android.content.Intent
+import android.view.KeyEvent
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.res.stringResource
 import com.TopMob.bookmt.R
@@ -15,14 +16,26 @@ import android.content.ContextWrapper
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -80,6 +93,7 @@ fun ReaderScreen(
     )
 
     var turnPage by remember { mutableStateOf<((Int) -> Unit)?>(null) }
+    var scrollLine by remember { mutableStateOf<((Int) -> Unit)?>(null) }
     var goToPage by remember { mutableStateOf<((Int) -> Unit)?>(null) }
     var selection by remember { mutableStateOf<ReaderSelection?>(null) }
     var editing by remember { mutableStateOf<Bookmark?>(null) }
@@ -133,9 +147,57 @@ fun ReaderScreen(
         }
     }
 
-    VolumeKeyScroll(enabled = state.settings.volumeKeysEnabled && state.overlay == ReaderOverlay.NONE && selection == null && editing == null) { key ->
-        turnPage?.invoke(if (key == VolumeKey.UP) -1 else 1)
-    }
+    val navigationEnabled = state.overlay == ReaderOverlay.NONE && selection == null && editing == null
+    val volumeKeysEnabled = state.settings.volumeKeysEnabled && navigationEnabled &&
+        state.tts.status !in setOf(TtsStatus.PLAYING, TtsStatus.PREPARING)
+
+    ReaderKeyNavigation(
+        volumeEnabled = volumeKeysEnabled,
+        navigationEnabled = navigationEnabled,
+        onVolumeKey = { key ->
+            val action = turnPage ?: return@ReaderKeyNavigation false
+            action(if (key == VolumeKey.UP) -1 else 1)
+            true
+        },
+        onNavigate = { action, event ->
+            when (action) {
+                ReaderNavigationAction.PAGE_NEXT -> {
+                    if (event.repeatCount > 0) true
+                    else {
+                        turnPage?.invoke(1)
+                        true
+                    }
+                }
+                ReaderNavigationAction.PAGE_PREVIOUS -> {
+                    if (event.repeatCount > 0) true
+                    else {
+                        turnPage?.invoke(-1)
+                        true
+                    }
+                }
+                ReaderNavigationAction.LINE_NEXT -> {
+                    val lineAction = scrollLine
+                    if (lineAction != null) {
+                        lineAction(1)
+                        true
+                    } else if (event.repeatCount == 0) {
+                        turnPage?.invoke(1)
+                        true
+                    } else true
+                }
+                ReaderNavigationAction.LINE_PREVIOUS -> {
+                    val lineAction = scrollLine
+                    if (lineAction != null) {
+                        lineAction(-1)
+                        true
+                    } else if (event.repeatCount == 0) {
+                        turnPage?.invoke(-1)
+                        true
+                    } else true
+                }
+            }
+        }
+    )
 
     Box(modifier = Modifier
         .fillMaxSize()
@@ -145,6 +207,7 @@ fun ReaderScreen(
             state = state,
             colors = colors,
             onRegisterTurn = { turnPage = it },
+            onRegisterLineScroll = { scrollLine = it },
             onRegisterGoToPage = { goToPage = it },
             onSelection = { selection = it },
             onJump = viewModel::jumpToOffset,
@@ -230,6 +293,62 @@ fun ReaderScreen(
                 } else null,
             )
         }
+
+        val ttsActive = state.tts.status in setOf(TtsStatus.PLAYING, TtsStatus.PAUSED, TtsStatus.PREPARING)
+        if (!state.showControls && ttsActive) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(bottom = 12.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                color = colors.background.copy(alpha = 0.94f),
+                tonalElevation = 6.dp,
+                shadowElevation = 8.dp,
+                border = androidx.compose.foundation.BorderStroke(1.dp, colors.secondaryText.copy(alpha = 0.25f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (state.tts.activeVoiceId != null) {
+                        Text(
+                            text = com.TopMob.bookmt.data.tts.DefaultVoices.name(state.tts.activeVoiceId),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.text,
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            if (state.tts.status == TtsStatus.PLAYING || state.tts.status == TtsStatus.PREPARING) {
+                                viewModel.onPauseTts()
+                            } else {
+                                viewModel.onResumeTts()
+                            }
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (state.tts.status == TtsStatus.PAUSED) Icons.Filled.PlayArrow else Icons.Filled.Pause,
+                            contentDescription = stringResource(if (state.tts.status == TtsStatus.PAUSED) R.string.tts_resume else R.string.tts_pause),
+                            tint = colors.text
+                        )
+                    }
+                    IconButton(
+                        onClick = viewModel::onStopTts,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Stop,
+                            contentDescription = stringResource(R.string.reader_stop_tts),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+        }
         if (state.autoPaging) TextButton(onClick = viewModel::stopAutoPaging,
             modifier = Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.systemBars)) {
             Text(stringResource(R.string.reader_stop_auto))
@@ -296,6 +415,7 @@ private fun ReaderSurface(
     state: ReaderUiState,
     colors: ReaderColors,
     onRegisterTurn: (((Int) -> Unit)?) -> Unit,
+    onRegisterLineScroll: (((Int) -> Unit)?) -> Unit,
     onRegisterGoToPage: (((Int) -> Unit)?) -> Unit,
     onSelection: (ReaderSelection) -> Unit,
     onJump: (Int) -> Unit,
@@ -331,6 +451,7 @@ private fun ReaderSurface(
             currentOffset = state.currentOffset,
             navigationVersion = state.navigationVersion,
             onRegisterTurn = onRegisterTurn,
+            onRegisterLineScroll = onRegisterLineScroll,
             onRegisterGoToPage = onRegisterGoToPage,
             onSelection = onSelection,
             onJump = onJump,
@@ -369,16 +490,23 @@ private fun BrightnessEdgeStrip(level: Float, onLevelChange: (Float) -> Unit) {
 }
 
 @Composable
-private fun VolumeKeyScroll(
-    enabled: Boolean,
-    onVolumeKey: (VolumeKey) -> Unit,
+private fun ReaderKeyNavigation(
+    volumeEnabled: Boolean,
+    navigationEnabled: Boolean,
+    onVolumeKey: (VolumeKey) -> Boolean,
+    onNavigate: (ReaderNavigationAction, KeyEvent) -> Boolean,
 ) {
     val activity = LocalContext.current.findActivity()
     val latestOnVolumeKey by rememberUpdatedState(onVolumeKey)
-    DisposableEffect(activity, enabled) {
+    val latestOnNavigate by rememberUpdatedState(onNavigate)
+    DisposableEffect(activity, volumeEnabled, navigationEnabled) {
         val controller = activity as? VolumeKeyController
-        controller?.onVolumeKey = if (enabled) { key -> latestOnVolumeKey(key); true } else null
-        onDispose { controller?.onVolumeKey = null }
+        controller?.onVolumeKey = if (volumeEnabled) { key -> latestOnVolumeKey(key) } else null
+        controller?.onReaderNavigation = if (navigationEnabled) { action, event -> latestOnNavigate(action, event) } else null
+        onDispose {
+            controller?.onVolumeKey = null
+            controller?.onReaderNavigation = null
+        }
     }
 }
 

@@ -106,7 +106,8 @@ class ReaderViewModel @Inject constructor(
             }
             if (ttsJob?.isActive == true && ttsState.status == TtsStatus.PLAYING) {
                 ttsState.currentSegment?.let { segment ->
-                    moveToOffset(segment.startOffset, save = false)
+                    val bounded = segment.startOffset.coerceIn(0, (_uiState.value.totalLength - 1).coerceAtLeast(0))
+                    _uiState.update { it.copy(currentOffset = bounded) }
                     if (lastListeningPosition != segment.startOffset) {
                         lastListeningPosition = segment.startOffset
                         annotationAction {
@@ -366,6 +367,9 @@ class ReaderViewModel @Inject constructor(
                 val offset = if (resumeSaved && saved != null) kotlinx.coroutines.withContext(dispatchers.io) {
                     com.TopMob.bookmt.domain.model.TextAnchors.resolve(content, saved.listeningAnchor, saved.listeningPosition).offset
                 } else visibleOffset
+                if (resumeSaved && offset != visibleOffset) {
+                    moveToOffset(offset)
+                }
                 readAloud.prepare(DefaultVoices.forSettings(settings), bookId)
                 speechSession = readAloud.state.value.sessionId
                 readAloud.start(content, offset, settings.ttsSentencePauseMs, settings.ttsParagraphPauseMs)

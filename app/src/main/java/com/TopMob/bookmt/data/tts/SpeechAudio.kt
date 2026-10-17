@@ -22,8 +22,11 @@ internal object SpeechAudio {
         // Retain quiet onsets and endings instead of cutting exactly at the threshold.
         from = maxOf(0, from - rate * 40 / 1000)
         to = minOf(samples.size, to + rate * 70 / 1000)
-        if (to <= from || peak < .0005f) return samples
-        val silence = rate.toLong() * pauseMs.coerceIn(0, 2000) / 1000
+        if (to <= from || peak < .0005f) {
+            val silence = rate.toLong() * pauseMs.coerceIn(0, 3000) / 1000
+            return FloatArray(samples.size + silence.toInt()).also { samples.copyInto(it, 0, 0, samples.size) }
+        }
+        val silence = rate.toLong() * pauseMs.coerceIn(0, 3000) / 1000
         return FloatArray(to - from + silence.toInt()).also { samples.copyInto(it, 0, from, to) }
     }
 }

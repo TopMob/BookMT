@@ -29,6 +29,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.TopMob.bookmt.core.common.LocaleManager
 import com.TopMob.bookmt.data.settings.AppSettingsDataStore
 import com.TopMob.bookmt.presentation.navigation.BookMTNavHost
+import com.TopMob.bookmt.presentation.reader.ReaderNavigationAction
 import com.TopMob.bookmt.presentation.reader.VolumeKey
 import com.TopMob.bookmt.presentation.reader.VolumeKeyController
 import com.TopMob.bookmt.presentation.settings.AppSettingsViewModel
@@ -39,8 +40,8 @@ import dagger.hilt.android.AndroidEntryPoint
  * Single-activity host. [AndroidEntryPoint] enables Hilt injection into this activity and the
  * Compose-hosted ViewModels reached through [BookMTNavHost].
  *
- * Implements [VolumeKeyController] so the reader can opt into hardware volume-key page turning
- * while it is on screen; when no handler is registered the keys behave normally.
+ * Implements [VolumeKeyController] so the reader can opt into hardware volume-key and physical
+ * keyboard navigation while it is on screen; when no handler is registered the keys behave normally.
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity(), VolumeKeyController {
@@ -49,6 +50,7 @@ class MainActivity : ComponentActivity(), VolumeKeyController {
     private var importedBookId by mutableStateOf<Long?>(null)
 
     override var onVolumeKey: ((VolumeKey) -> Boolean)? = null
+    override var onReaderNavigation: ((ReaderNavigationAction, KeyEvent) -> Boolean)? = null
 
     /** Localize the whole activity before any view is created, based on the persisted language. */
     override fun attachBaseContext(newBase: Context) {
@@ -97,17 +99,29 @@ class MainActivity : ComponentActivity(), VolumeKeyController {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        val key = keyCode.toVolumeKey()
-        if (key != null && onVolumeKey?.invoke(key) == true) {
+        if (event == null) return super.onKeyDown(keyCode, event)
+
+        val vKey = keyCode.toVolumeKey()
+        if (vKey != null && onVolumeKey?.invoke(vKey) == true) {
             // Consuming the DOWN event flips the page and suppresses the system volume HUD.
             return true
         }
+
+        val handler = onReaderNavigation
+        if (handler != null) {
+            val navAction = keyCode.toNavigationAction(event)
+            if (navAction != null && handler(navAction, event)) {
+                return true
+            }
+        }
+
         return super.onKeyDown(keyCode, event)
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
         // While a reader handler is active, also swallow the UP event so no volume change leaks.
         if (onVolumeKey != null && keyCode.toVolumeKey() != null) return true
+        if (onReaderNavigation != null && keyCode.isNavigationKey()) return true
         return super.onKeyUp(keyCode, event)
     }
 
@@ -115,6 +129,28 @@ class MainActivity : ComponentActivity(), VolumeKeyController {
         KeyEvent.KEYCODE_VOLUME_UP -> VolumeKey.UP
         KeyEvent.KEYCODE_VOLUME_DOWN -> VolumeKey.DOWN
         else -> null
+    }
+
+    private fun Int.toNavigationAction(event: KeyEvent): ReaderNavigationAction? = when (this) {
+        KeyEvent.KEYCODE_PAGE_DOWN -> ReaderNavigationAction.PAGE_NEXT
+        KeyEvent.KEYCODE_PAGE_UP -> ReaderNavigationAction.PAGE_PREVIOUS
+        KeyEvent.KEYCODE_SPACE -> if (event.isShiftPressed) ReaderNavigationAction.PAGE_PREVIOUS else ReaderNavigationAction.PAGE_NEXT
+        KeyEvent.KEYCODE_DPAD_DOWN -> ReaderNavigationAction.LINE_NEXT
+        KeyEvent.KEYCODE_DPAD_UP -> ReaderNavigationAction.LINE_PREVIOUS
+        KeyEvent.KEYCODE_DPAD_RIGHT -> ReaderNavigationAction.PAGE_NEXT
+        KeyEvent.KEYCODE_DPAD_LEFT -> ReaderNavigationAction.PAGE_PREVIOUS
+        else -> null
+    }
+
+    private fun Int.isNavigationKey(): Boolean = when (this) {
+        KeyEvent.KEYCODE_PAGE_DOWN,
+        KeyEvent.KEYCODE_PAGE_UP,
+        KeyEvent.KEYCODE_SPACE,
+        KeyEvent.KEYCODE_DPAD_DOWN,
+        KeyEvent.KEYCODE_DPAD_UP,
+        KeyEvent.KEYCODE_DPAD_RIGHT,
+        KeyEvent.KEYCODE_DPAD_LEFT -> true
+        else -> false
     }
 }
 

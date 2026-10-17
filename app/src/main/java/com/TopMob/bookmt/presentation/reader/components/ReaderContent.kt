@@ -1,5 +1,7 @@
 package com.TopMob.bookmt.presentation.reader.components
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.rememberTransformableState
@@ -28,10 +30,18 @@ import com.TopMob.bookmt.domain.model.*
 import com.TopMob.bookmt.presentation.reader.*
 import com.TopMob.bookmt.presentation.theme.ReaderColors
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import coil.compose.AsyncImage
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+
+private data class ScrollPositionState(
+    val index: Int,
+    val offsetY: Int,
+    val isScrolling: Boolean,
+    val isAtBottom: Boolean,
+)
 
 /** Show the requested block first, then finish a reusable index of page boundaries in the background. */
 @Composable
@@ -46,6 +56,7 @@ fun ReaderContent(
     formatting: Boolean = true, spokenSegment: TextSegment? = null,
     onContentError: (Throwable) -> Unit = {}, onRebuildCache: () -> Unit = {},
     prioritizeAudio: Boolean = false,
+    onRegisterLineScroll: (((Int) -> Unit)?) -> Unit = {},
 ) {
     val density = LocalDensity.current
     val measurer = rememberTextMeasurer(cacheSize = 16)
@@ -123,7 +134,7 @@ fun ReaderContent(
             return@BoxWithConstraints
         }
         if (pages.isEmpty()) { CircularProgressIndicator(Modifier.align(Alignment.Center)); return@BoxWithConstraints }
-        key(pages, mode) {
+        key(mode) {
             val start = remember { latestOffset }
             val initialPage = remember { ReaderPaginator.pageIndexForOffset(pages, start) }
             val pager = rememberPagerState(initialPage = initialPage, pageCount = { pages.size })
@@ -131,6 +142,39 @@ fun ReaderContent(
             val scope = rememberCoroutineScope()
             var restoredVersion by remember { mutableStateOf<Long?>(null) }
             var restoredOffset by remember { mutableIntStateOf(start) }
+
+            // When new chapters are calculated in the background, smoothly adjust list/pager index
+            // so the user's scroll position and currently read line are never reset to 0.
+            var lastPages by remember { mutableStateOf(pages) }
+            LaunchedEffect(pages, restoredVersion, navigationVersion) {
+                if (restoredVersion != navigationVersion) {
+                    lastPages = pages
+                    return@LaunchedEffect
+                }
+                if (lastPages !== pages && lastPages.isNotEmpty() && pages.isNotEmpty()) {
+                    val oldPages = lastPages
+                    lastPages = pages
+                    if (mode == ReadingMode.PAGED) {
+                        val oldPageIndex = pager.currentPage.coerceIn(0, oldPages.lastIndex)
+                        val pageOffset = oldPages[oldPageIndex].startOffset
+                        val newIndex = ReaderPaginator.pageIndexForOffset(pages, pageOffset)
+                        if (newIndex != pager.currentPage) {
+                            pager.scrollToPage(newIndex)
+                        }
+                    } else {
+                        val oldItemIndex = list.firstVisibleItemIndex.coerceIn(0, oldPages.lastIndex)
+                        val itemScrollOffset = list.firstVisibleItemScrollOffset
+                        val pageOffset = oldPages[oldItemIndex].startOffset
+                        val newIndex = ReaderPaginator.pageIndexForOffset(pages, pageOffset)
+                        if (newIndex != list.firstVisibleItemIndex || itemScrollOffset != list.firstVisibleItemScrollOffset) {
+                            list.scrollToItem(newIndex, itemScrollOffset)
+                        }
+                    }
+                } else {
+                    lastPages = pages
+                }
+            }
+
             LaunchedEffect(navigationVersion) {
                 restoredVersion = null
                 val target = latestOffset
@@ -148,37 +192,180 @@ fun ReaderContent(
                 restoredOffset = target
                 restoredVersion = navigationVersion
             }
-            LaunchedEffect(pages, mode, restoredVersion, navigationVersion, complete) {
+
+            var hasRestoredInitialOffset by remember { mutableStateOf(false) }
+            LaunchedEffect(mode, restoredVersion, navigationVersion) {
                 if (restoredVersion != navigationVersion) return@LaunchedEffect
-                var first = true
+                hasRestoredInitialOffset = false
                 if (mode == ReadingMode.PAGED) {
                     snapshotFlow { pager.settledPage }.distinctUntilChanged().collect { index ->
-                        latestOnOffset(if (first) restoredOffset else pages[index].startOffset)
-                        first = false
-                        latestOnPage(index + 1, if (complete) pages.size else -pages.size)
+                        if (index in pages.indices) {
+                            latestOnOffset(if (!hasRestoredInitialOffset) restoredOffset else pages[index].startOffset)
+                            hasRestoredInitialOffset = true
+                            latestOnPage(index + 1, if (complete) pages.size else -pages.size)
+                        }
                     }
                 } else {
-                    snapshotFlow { list.firstVisibleItemIndex to list.firstVisibleItemScrollOffset }.distinctUntilChanged().collect { (index, y) ->
-                        val page = pages[index]
-                        val offset = if (first) restoredOffset else withContext(Dispatchers.Default) {
-                            val snapshot = page.materialized()
-                            val rich = snapshot.richText(textStyle, width, height, density.density, density.fontScale, formatting)
-                            val layout = measurer.measure(rich.text, textStyle, placeholders = rich.placeholders, constraints = Constraints(maxWidth = width))
-                            page.startOffset + if (page.length == 0) 0 else layout.getLineStart(layout.getLineForVerticalPosition(y.toFloat()))
+                    var lastReportedPageNum = -1
+                    var lastReportedOffset = -1
+                    snapshotFlow {
+                        val firstIndex = list.firstVisibleItemIndex
+                        val scrollOffset = list.firstVisibleItemScrollOffset
+                        val isScrolling = list.isScrollInProgress
+                        val lastItem = list.layoutInfo.visibleItemsInfo.lastOrNull()
+                        val isAtBottom = lastItem != null && pages.isNotEmpty() && lastItem.index == pages.lastIndex &&
+                            (lastItem.offset + lastItem.size <= list.layoutInfo.viewportEndOffset)
+                        ScrollPositionState(firstIndex, scrollOffset, isScrolling, isAtBottom)
+                    }.distinctUntilChanged().collectLatest { state ->
+                        if (state.index !in pages.indices) return@collectLatest
+                        val page = pages[state.index]
+
+                        val pageNum = if (state.isAtBottom) pages.size else (state.index + 1)
+                        if (pageNum != lastReportedPageNum) {
+                            lastReportedPageNum = pageNum
+                            latestOnPage(pageNum, if (complete) pages.size else -pages.size)
                         }
-                        first = false; latestOnOffset(offset)
-                        latestOnPage(index + 1, if (complete) pages.size else -pages.size)
+
+                        if (!hasRestoredInitialOffset) {
+                            hasRestoredInitialOffset = true
+                            lastReportedOffset = restoredOffset
+                            latestOnOffset(restoredOffset)
+                            return@collectLatest
+                        }
+
+                        // While actively flinging or dragging, debounce the heavy text measurement
+                        // so scroll animation remains silky smooth at full display refresh rate.
+                        if (state.isScrolling) {
+                            delay(120)
+                        }
+
+                        val exactOffset = if (page.length == 0 || state.offsetY <= 0) {
+                            page.startOffset
+                        } else {
+                            withContext(Dispatchers.Default) {
+                                val snapshot = page.materialized()
+                                val rich = snapshot.richText(textStyle, width, height, density.density, density.fontScale, formatting)
+                                val layout = measurer.measure(rich.text, textStyle, placeholders = rich.placeholders, constraints = Constraints(maxWidth = width))
+                                page.startOffset + layout.getLineStart(layout.getLineForVerticalPosition(state.offsetY.toFloat()))
+                            }
+                        }
+
+                        if (exactOffset != lastReportedOffset) {
+                            lastReportedOffset = exactOffset
+                            latestOnOffset(exactOffset)
+                        }
                     }
                 }
             }
-            val turn: (Int) -> Unit = { direction -> scope.launch {
-                if (mode == ReadingMode.PAGED) pager.animateScrollToPage((pager.currentPage + direction).coerceIn(0, pages.lastIndex))
-                else list.animateScrollBy(list.layoutInfo.viewportSize.height * direction.toFloat())
-            } }
+            val turnPaged: (Int) -> Unit = { direction ->
+                scope.launch {
+                    val maxAdvance = 3
+                    val target = (pager.targetPage + direction).coerceIn(
+                        pager.currentPage - maxAdvance,
+                        pager.currentPage + maxAdvance
+                    ).coerceIn(0, pages.lastIndex)
+                    pager.animateScrollToPage(target)
+                }
+            }
+
+            val scrollController = remember(list, scope) {
+                object {
+                    private var pendingDelta = 0f
+                    private var isRunning = false
+
+                    fun scroll(delta: Float, maxPending: Float) {
+                        synchronized(this) {
+                            pendingDelta = (pendingDelta + delta).coerceIn(-maxPending, maxPending)
+                            if (isRunning) return
+                            isRunning = true
+                        }
+                        scope.launch {
+                            try {
+                                while (true) {
+                                    val step: Float
+                                    synchronized(this@object) {
+                                        step = pendingDelta
+                                        pendingDelta = 0f
+                                    }
+                                    if (kotlin.math.abs(step) < 1f) break
+                                    val duration = if (kotlin.math.abs(step) < 250f) 120 else 240
+                                    list.animateScrollBy(
+                                        value = step,
+                                        animationSpec = tween(
+                                            durationMillis = duration,
+                                            easing = FastOutSlowInEasing
+                                        )
+                                    )
+                                }
+                            } finally {
+                                synchronized(this@object) {
+                                    isRunning = false
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            val turnScroll: (Int) -> Unit = { direction ->
+                val viewportHeight = list.layoutInfo.viewportSize.height.toFloat().takeIf { it > 0f } ?: height.toFloat()
+                val scrollDelta = (viewportHeight * 0.88f) * direction
+                val maxPending = viewportHeight * 2.5f
+                scrollController.scroll(scrollDelta, maxPending)
+            }
+
+            val scrollLineAction: (Int) -> Unit = { direction ->
+                val lineStep = with(density) { 72.dp.toPx() } * direction
+                val viewportHeight = list.layoutInfo.viewportSize.height.toFloat().takeIf { it > 0f } ?: height.toFloat()
+                val maxPending = viewportHeight * 1.5f
+                scrollController.scroll(lineStep, maxPending)
+            }
+
+            val turn: (Int) -> Unit = if (mode == ReadingMode.PAGED) turnPaged else turnScroll
+            val lineScroll: ((Int) -> Unit)? = if (mode == ReadingMode.SCROLL) scrollLineAction else null
+
+            LaunchedEffect(spokenSegment, audioActive) {
+                val segment = spokenSegment ?: return@LaunchedEffect
+                if (!audioActive) return@LaunchedEffect
+                if (pages.isEmpty()) return@LaunchedEffect
+                val targetIndex = ReaderPaginator.pageIndexForOffset(pages, segment.startOffset)
+                if (targetIndex !in pages.indices) return@LaunchedEffect
+
+                if (mode == ReadingMode.PAGED) {
+                    if (targetIndex != pager.currentPage) {
+                        if (kotlin.math.abs(targetIndex - pager.currentPage) <= 1) {
+                            pager.animateScrollToPage(targetIndex)
+                        } else {
+                            pager.scrollToPage(targetIndex)
+                        }
+                    }
+                } else {
+                    val visibleInfo = list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == targetIndex }
+                    if (visibleInfo == null) {
+                        list.scrollToItem(targetIndex, 0)
+                    } else {
+                        val viewportHeight = list.layoutInfo.viewportSize.height.takeIf { it > 0 } ?: height
+                        val targetFraction = (segment.startOffset - pages[targetIndex].startOffset).toFloat() / pages[targetIndex].length.coerceAtLeast(1)
+                        val approximateLineY = visibleInfo.offset + (visibleInfo.size * targetFraction).toInt()
+                        if (approximateLineY > viewportHeight * 0.72f || approximateLineY < 0) {
+                            val delta = (approximateLineY - (viewportHeight * 0.30f)).coerceAtLeast(0f)
+                            if (delta > 20f && !list.isScrollInProgress) {
+                                list.animateScrollBy(delta, tween(durationMillis = 280, easing = FastOutSlowInEasing))
+                            }
+                        }
+                    }
+                }
+            }
+
             DisposableEffect(pages, mode, complete) {
                 onRegisterTurn(turn)
+                onRegisterLineScroll(lineScroll)
                 onRegisterGoToPage(if (complete) { index -> onJump(pages[index.coerceIn(0, pages.lastIndex)].startOffset) } else null)
-                onDispose { onRegisterTurn(null); onRegisterGoToPage(null) }
+                onDispose {
+                    onRegisterTurn(null)
+                    onRegisterLineScroll(null)
+                    onRegisterGoToPage(null)
+                }
             }
             val tap: (Float, Float) -> Unit = { x, widthPx -> when (ReaderTapZone.fromX(x, widthPx)) {
                 ReaderTapZone.LEFT -> turn(-1); ReaderTapZone.RIGHT -> turn(1); ReaderTapZone.CENTER -> onToggleControls()
@@ -186,12 +373,14 @@ fun ReaderContent(
             if (mode == ReadingMode.PAGED) HorizontalPager(pager, modifier = Modifier.fillMaxSize()) { index ->
                 ReaderPageText(pages[index], textStyle, bookmarks, searchResults, onSelection, tap,
                     Modifier.fillMaxSize().padding(horizontal = horizontalPadding.dp, vertical = verticalPadding.dp),
-                    formatting, height, { link = it }, { path, alt -> image = path to alt }, pageError, spokenSegment)
+                    formatting, height, { link = it }, { path, alt -> image = path to alt }, pageError, spokenSegment,
+                    colors.ttsHighlight)
             } else LazyColumn(state = list, modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = horizontalPadding.dp, vertical = verticalPadding.dp)) {
                 items(pages.size, key = { pages[it].startOffset }) { index ->
                     ReaderPageText(pages[index], textStyle, bookmarks, searchResults, onSelection, tap, Modifier.fillMaxWidth(),
-                        formatting, height, { link = it }, { path, alt -> image = path to alt }, pageError, spokenSegment)
+                        formatting, height, { link = it }, { path, alt -> image = path to alt }, pageError, spokenSegment,
+                        colors.ttsHighlight)
                 }
             }
         }

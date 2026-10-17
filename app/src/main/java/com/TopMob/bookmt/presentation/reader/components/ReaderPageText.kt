@@ -23,7 +23,8 @@ import java.io.File
 fun ReaderPageText(page: ReaderPage, style: TextStyle, bookmarks: List<Bookmark>, matches: List<BookSearchResult>,
     onSelection: (ReaderSelection) -> Unit, onTap: (Float, Float) -> Unit, modifier: Modifier = Modifier,
     formatting: Boolean = true, viewportHeightPx: Int = 1000, onLink: (String) -> Unit = {}, onImage: (String, String) -> Unit = { _, _ -> },
-    onLoadError: (Throwable) -> Unit = {}, spokenSegment: com.TopMob.bookmt.domain.model.TextSegment? = null) {
+    onLoadError: (Throwable) -> Unit = {}, spokenSegment: com.TopMob.bookmt.domain.model.TextSegment? = null,
+    ttsHighlightColor: Color = Color(0x6642A5F5)) {
     val latestError by rememberUpdatedState(onLoadError)
     val loaded by produceState<ReaderPage?>(null, page) {
         try { value = withContext(Dispatchers.IO) { page.materialized() } }
@@ -42,7 +43,7 @@ fun ReaderPageText(page: ReaderPage, style: TextStyle, bookmarks: List<Bookmark>
         val rich = remember(snapshot, style, width, viewportHeightPx, density.density, density.fontScale, formatting) {
             snapshot.richText(style, width, viewportHeightPx, density.density, density.fontScale, formatting)
         }
-        val text = remember(rich, bookmarks, matches, spokenSegment) {
+        val text = remember(rich, bookmarks, matches, spokenSegment, ttsHighlightColor) {
             buildAnnotatedString {
                 append(rich.text)
                 fun mark(start: Int, end: Int, color: Color) {
@@ -52,7 +53,20 @@ fun ReaderPageText(page: ReaderPage, style: TextStyle, bookmarks: List<Bookmark>
                 }
                 bookmarks.forEach { mark(it.position, it.endPosition, Color(it.colorArgb ?: 0xFFFFD54F.toInt())) }
                 matches.forEach { mark(it.offset, it.offset + it.length, Color(0xFF80CBC4)) }
-                spokenSegment?.let { mark(it.startOffset, it.endOffset, Color(0xFF64B5F6)) }
+                spokenSegment?.let { segment ->
+                    val from = (segment.startOffset - page.startOffset).coerceIn(0, length)
+                    val to = (segment.endOffset - page.startOffset).coerceIn(0, length)
+                    if (from < to) {
+                        addStyle(
+                            SpanStyle(
+                                background = ttsHighlightColor,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                            ),
+                            from,
+                            to,
+                        )
+                    }
+                }
             }
         }
         val inline = remember(snapshot, rich) { chapter.images.mapNotNull { image ->

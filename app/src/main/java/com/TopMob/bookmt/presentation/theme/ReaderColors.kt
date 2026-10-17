@@ -15,6 +15,7 @@ data class ReaderColors(
     val secondaryText: Color,
     val highlightDefault: Color,
     val controlScrim: Color,
+    val ttsHighlight: Color = Color(0x6642A5F5),
 ) {
     companion object {
         val Day = ReaderColors(
@@ -23,6 +24,7 @@ data class ReaderColors(
             secondaryText = Color(0xFF6B6B6B),
             highlightDefault = Color(0x66FFEB3B),
             controlScrim = Color(0xCCFFFFFF),
+            ttsHighlight = Color(0x551E88E5),
         )
 
         val Sepia = ReaderColors(
@@ -31,6 +33,7 @@ data class ReaderColors(
             secondaryText = Color(0xFF8A7459),
             highlightDefault = Color(0x66D2B48C),
             controlScrim = Color(0xCCF4ECD8),
+            ttsHighlight = Color(0x66E0A040),
         )
 
         val Night = ReaderColors(
@@ -39,6 +42,7 @@ data class ReaderColors(
             secondaryText = Color(0xFF8A9099),
             highlightDefault = Color(0x553F51B5),
             controlScrim = Color(0xCC15171A),
+            ttsHighlight = Color(0x663F69A8),
         )
 
         val AmoledBlack = ReaderColors(
@@ -47,6 +51,7 @@ data class ReaderColors(
             secondaryText = Color(0xFF6E747C),
             highlightDefault = Color(0x553F51B5),
             controlScrim = Color(0xCC000000),
+            ttsHighlight = Color(0x772E72D2),
         )
 
         /** Resolves a palette for the given [theme]; [custom] is used when theme is CUSTOM. */

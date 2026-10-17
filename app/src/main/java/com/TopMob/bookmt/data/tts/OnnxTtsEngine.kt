@@ -137,6 +137,7 @@ class OnnxTtsEngine(private val context: Context, private val dispatchers: Dispa
                 awaitUnpaused()
                 delay(20)
             }
+            delay(30)
         } finally { synchronized(audioLock) { track = null; output.release() } }
     }
 
