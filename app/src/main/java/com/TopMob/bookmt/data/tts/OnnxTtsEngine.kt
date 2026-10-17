@@ -29,7 +29,27 @@ class OnnxTtsEngine(private val context: Context, private val dispatchers: Dispa
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val attributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
-    private val focusListener = AudioManager.OnAudioFocusChangeListener { if (it != AudioManager.AUDIOFOCUS_GAIN) pause() }
+    private var resumeOnFocusGain = false
+    private val focusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                if (state.value.status == TtsStatus.PLAYING) {
+                    resumeOnFocusGain = true
+                    pause()
+                }
+            }
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                if (resumeOnFocusGain) {
+                    resumeOnFocusGain = false
+                    resume()
+                }
+            }
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                resumeOnFocusGain = false
+                pause()
+            }
+        }
+    }
     private var focusRequest: AudioFocusRequest? = null
     private var receiverRegistered = false
     private val noisyReceiver = object : BroadcastReceiver() {
@@ -108,37 +128,60 @@ class OnnxTtsEngine(private val context: Context, private val dispatchers: Dispa
         }
     }
 
+    private fun getOrCreateTrack(sampleRate: Int): AudioTrack {
+        synchronized(audioLock) {
+            val existing = track
+            if (existing != null && existing.sampleRate == sampleRate && existing.state == AudioTrack.STATE_INITIALIZED) {
+                return existing
+            }
+            try { existing?.release() } catch (_: Exception) {}
+            val bufferBytes = maxOf(
+                AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_FLOAT),
+                sampleRate / 5 * 4
+            )
+            val newTrack = AudioTrack.Builder().setAudioAttributes(attributes)
+                .setAudioFormat(
+                    AudioFormat.Builder().setSampleRate(sampleRate)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .setEncoding(AudioFormat.ENCODING_PCM_FLOAT).build()
+                )
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .setBufferSizeInBytes(bufferBytes)
+                .build()
+            track = newTrack
+            return newTrack
+        }
+    }
+
     private suspend fun play(samples: FloatArray, sampleRate: Int) {
-        val bufferBytes = maxOf(AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO,
-            AudioFormat.ENCODING_PCM_FLOAT), sampleRate / 5 * 4)
-        val output = AudioTrack.Builder().setAudioAttributes(attributes)
-            .setAudioFormat(AudioFormat.Builder().setSampleRate(sampleRate)
-                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).setEncoding(AudioFormat.ENCODING_PCM_FLOAT).build())
-            .setTransferMode(AudioTrack.MODE_STREAM).setBufferSizeInBytes(bufferBytes).build()
-        synchronized(audioLock) { track = output }
-        try {
-            check(output.state == AudioTrack.STATE_INITIALIZED) { "Не удалось открыть аудиовыход" }
+        val output = getOrCreateTrack(sampleRate)
+        check(output.state == AudioTrack.STATE_INITIALIZED) { "Не удалось открыть аудиовыход" }
+        awaitUnpaused()
+        synchronized(audioLock) {
+            if (!paused && !stopped && output.playState != AudioTrack.PLAYSTATE_PLAYING) {
+                output.play()
+            }
+        }
+        mutableState.update { it.copy(status = if (paused) TtsStatus.PAUSED else TtsStatus.PLAYING) }
+        val baseHeadPosition = output.playbackHeadPosition.toLong() and 0xffffffffL
+        var written = 0
+        while (written < samples.size) {
             awaitUnpaused()
-            synchronized(audioLock) { if (!paused && !stopped) output.play() }
-            mutableState.update { it.copy(status = if (paused) TtsStatus.PAUSED else TtsStatus.PLAYING) }
-            var written = 0
-            while (written < samples.size) {
-                awaitUnpaused()
-                val count = synchronized(audioLock) {
-                    if (paused || stopped) 0 else output.write(samples, written,
-                        minOf(4096, samples.size - written), AudioTrack.WRITE_NON_BLOCKING)
-                }
-                check(count >= 0) { "Ошибка воспроизведения: $count" }
-                written += count
-                if (count == 0) delay(10)
+            val count = synchronized(audioLock) {
+                if (paused || stopped) 0 else output.write(samples, written,
+                    minOf(4096, samples.size - written), AudioTrack.WRITE_NON_BLOCKING)
             }
-            // Drain the final buffer so sentence endings are not clipped.
-            while ((output.playbackHeadPosition.toLong() and 0xffffffffL) < written.toLong()) {
-                awaitUnpaused()
-                delay(20)
-            }
-            delay(30)
-        } finally { synchronized(audioLock) { track = null; output.release() } }
+            check(count >= 0) { "Ошибка воспроизведения: $count" }
+            written += count
+            if (count == 0) delay(10)
+        }
+        // Drain the final buffer so sentence endings are not clipped.
+        val targetHead = baseHeadPosition + written
+        while ((output.playbackHeadPosition.toLong() and 0xffffffffL) < targetHead) {
+            awaitUnpaused()
+            delay(15)
+        }
+        delay(20)
     }
 
     private suspend fun ensureRunning() {
@@ -164,7 +207,15 @@ class OnnxTtsEngine(private val context: Context, private val dispatchers: Dispa
     override fun stop() {
         stopped = true
         paused = false
-        synchronized(audioLock) { track?.pause(); track?.flush() }
+        resumeOnFocusGain = false
+        synchronized(audioLock) {
+            try {
+                track?.pause()
+                track?.flush()
+                track?.release()
+            } catch (_: Exception) {}
+            track = null
+        }
         mutableState.update { it.copy(status = TtsStatus.STOPPED, currentSegment = null) }
     }
     override fun release() {

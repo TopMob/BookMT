@@ -101,7 +101,9 @@ fun BookshelfScreen(
     val scope = rememberCoroutineScope()
 
     val selectionMode = selectedIds.isNotEmpty()
-    val selectedBooks = state.books.filter { it.id in selectedIds }
+    val selectedBooks = remember(state.books, selectedIds) {
+        if (selectedIds.isEmpty()) emptyList() else state.books.filter { it.id in selectedIds }
+    }
 
     fun toggleSelection(id: Long) {
         selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id

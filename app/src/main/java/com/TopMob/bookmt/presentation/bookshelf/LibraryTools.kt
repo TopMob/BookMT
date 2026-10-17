@@ -43,11 +43,18 @@ fun LibraryToolsDialog(state: BookshelfUiState, model: BookshelfViewModel, onDis
             HorizontalDivider()
             Text(stringResource(R.string.library_statistics), style = MaterialTheme.typography.titleMedium)
             val books = state.allBooks
-            Text(stringResource(R.string.library_stats_books, books.size, books.count { it.isFinished }, books.count { it.progress > 0f && !it.isFinished }))
-            val minutes = books.sumOf { it.totalReadingTimeMs } / 60000
+            val finishedCount = androidx.compose.runtime.remember(books) { books.count { it.isFinished } }
+            val readingCount = androidx.compose.runtime.remember(books) { books.count { it.progress > 0f && !it.isFinished } }
+            val totalTimeMs = androidx.compose.runtime.remember(books) { books.sumOf { it.totalReadingTimeMs } }
+            val totalSizeBytes = androidx.compose.runtime.remember(books) { books.sumOf { it.fileSizeBytes } }
+            val topBooks = androidx.compose.runtime.remember(books) {
+                books.filter { it.totalReadingTimeMs > 0 }.sortedByDescending { it.totalReadingTimeMs }.take(5)
+            }
+            Text(stringResource(R.string.library_stats_books, books.size, finishedCount, readingCount))
+            val minutes = totalTimeMs / 60000
             Text(stringResource(R.string.library_stats_time, minutes / 60, minutes % 60))
-            Text(stringResource(R.string.library_stats_size, books.sumOf { it.fileSizeBytes } / (1024 * 1024)))
-            books.filter { it.totalReadingTimeMs > 0 }.sortedByDescending { it.totalReadingTimeMs }.take(5).forEach {
+            Text(stringResource(R.string.library_stats_size, totalSizeBytes / (1024 * 1024)))
+            topBooks.forEach {
                 Text("${it.title} · ${it.totalReadingTimeMs / 60000} ${stringResource(R.string.library_minutes)}",
                     style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
             }

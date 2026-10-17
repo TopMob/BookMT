@@ -27,15 +27,7 @@ class TxtBookParser(
         BookMetadata(title = fileName.substringBeforeLast('.').ifBlank { fileName })
 
     override suspend fun parse(input: InputStream, fileName: String): BookContent =
-        withContext(dispatchers.io) {
-            val text = input.readBytes().decodeAsText()
-            val rawChapters = splitIntoChapters(text)
-            assembleContent(
-                title = fileName.substringBeforeLast('.').ifBlank { fileName },
-                author = null,
-                rawChapters = rawChapters,
-            )
-        }
+        parseTo(input, fileName, MemoryBookDestination())
 
     private fun splitIntoChapters(text: String): List<RawChapter> {
         val lines = text.lines()

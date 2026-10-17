@@ -43,7 +43,15 @@ fun ReaderPageText(page: ReaderPage, style: TextStyle, bookmarks: List<Bookmark>
         val rich = remember(snapshot, style, width, viewportHeightPx, density.density, density.fontScale, formatting) {
             snapshot.richText(style, width, viewportHeightPx, density.density, density.fontScale, formatting)
         }
-        val text = remember(rich, bookmarks, matches, spokenSegment, ttsHighlightColor) {
+        val pageStart = page.startOffset
+        val pageEnd = page.endOffset
+        val visibleBookmarks = remember(bookmarks, pageStart, pageEnd) {
+            bookmarks.filter { it.position < pageEnd && it.endPosition > pageStart }
+        }
+        val visibleMatches = remember(matches, pageStart, pageEnd) {
+            matches.filter { it.offset < pageEnd && (it.offset + it.length) > pageStart }
+        }
+        val text = remember(rich, visibleBookmarks, visibleMatches, spokenSegment, ttsHighlightColor) {
             buildAnnotatedString {
                 append(rich.text)
                 fun mark(start: Int, end: Int, color: Color) {
@@ -51,8 +59,8 @@ fun ReaderPageText(page: ReaderPage, style: TextStyle, bookmarks: List<Bookmark>
                     val to = (end - page.startOffset).coerceIn(0, length)
                     if (from < to) addStyle(SpanStyle(background = color.copy(alpha = 0.45f)), from, to)
                 }
-                bookmarks.forEach { mark(it.position, it.endPosition, Color(it.colorArgb ?: 0xFFFFD54F.toInt())) }
-                matches.forEach { mark(it.offset, it.offset + it.length, Color(0xFF80CBC4)) }
+                visibleBookmarks.forEach { mark(it.position, it.endPosition, Color(it.colorArgb ?: 0xFFFFD54F.toInt())) }
+                visibleMatches.forEach { mark(it.offset, it.offset + it.length, Color(0xFF80CBC4)) }
                 spokenSegment?.let { segment ->
                     val from = (segment.startOffset - page.startOffset).coerceIn(0, length)
                     val to = (segment.endOffset - page.startOffset).coerceIn(0, length)
