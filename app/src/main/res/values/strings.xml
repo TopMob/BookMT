@@ -124,4 +124,19 @@
     <string name="action_save">Save</string>
     <string name="action_delete">Delete</string>
     <string name="action_close">Close</string>
+    <string name="action_menu">Menu</string>
+
+    <!-- Reader Footnotes, Images & Cache -->
+    <string name="reader_cache_error">Could not read book cache. Original book and annotations are preserved.</string>
+    <string name="reader_rebuild_cache">Rebuild cache</string>
+    <string name="reader_footnote_error">Could not load note</string>
+    <string name="reader_link">Link</string>
+    <string name="reader_footnote">Footnote</string>
+    <string name="reader_go_to">Open</string>
+    <string name="reader_image">Illustration</string>
+    <string name="reader_image_unavailable">Illustration unavailable</string>
+    <string name="reader_position_warning">Some older bookmarks could not be accurately mapped to the text. Check them in the bookmarks list.</string>
+    <string name="reader_open_error">Could not open book content</string>
+    <string name="voice_female">Female · F1</string>
+    <string name="voice_male">Male · M1</string>
 </resources>

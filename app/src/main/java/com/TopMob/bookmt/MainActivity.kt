@@ -81,12 +81,14 @@ class MainActivity : ComponentActivity(), VolumeKeyController {
         importIntent(intent)
     }
 
-    @Suppress("DEPRECATION")
     private fun importIntent(intent: Intent?) {
         val uris = when (intent?.action) {
             Intent.ACTION_VIEW -> listOfNotNull(intent.data)
-            Intent.ACTION_SEND -> listOfNotNull(intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))
-            Intent.ACTION_SEND_MULTIPLE -> intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM).orEmpty()
+            Intent.ACTION_SEND -> listOfNotNull(
+                intent?.let { androidx.core.content.IntentCompat.getParcelableExtra(it, Intent.EXTRA_STREAM, Uri::class.java) }
+            )
+            Intent.ACTION_SEND_MULTIPLE ->
+                intent?.let { androidx.core.content.IntentCompat.getParcelableArrayListExtra(it, Intent.EXTRA_STREAM, Uri::class.java) }.orEmpty()
             else -> emptyList()
         }.filter { it.scheme == "content" || it.scheme == "file" }
         if (uris.isEmpty()) return

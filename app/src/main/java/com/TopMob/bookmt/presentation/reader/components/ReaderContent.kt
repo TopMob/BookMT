@@ -20,6 +20,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.TopMob.bookmt.R
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Constraints
@@ -128,8 +131,8 @@ fun ReaderContent(
         }
         if (failure != null) {
             Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Не удалось прочитать кэш книги. Исходная книга и отметки сохранены.", color = colors.text)
-                TextButton(onClick = onRebuildCache) { Text("Пересоздать кэш") }
+                Text(stringResource(R.string.reader_cache_error), color = colors.text)
+                TextButton(onClick = onRebuildCache) { Text(stringResource(R.string.reader_rebuild_cache)) }
             }
             return@BoxWithConstraints
         }
@@ -390,6 +393,7 @@ fun ReaderContent(
     }
     link?.let { target ->
         val offset = content.targets[target]
+        val context = LocalContext.current
         val preview by produceState<String?>(null, target) {
             try {
                 value = withContext(Dispatchers.IO) {
@@ -400,20 +404,21 @@ fun ReaderContent(
                     }
                 }
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { value = "Не удалось прочитать примечание"; latestError(e) }
+            catch (e: Exception) { value = context.getString(R.string.reader_footnote_error); latestError(e) }
         }
-        AlertDialog(onDismissRequest = { link = null }, title = { Text(if (offset == null) "Ссылка" else "Примечание") },
-            text = { Text(preview ?: "Загрузка…", Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) },
-            confirmButton = { if (offset != null) TextButton(onClick = { link = null; onJump(offset) }) { Text("Перейти") } },
-            dismissButton = { TextButton(onClick = { link = null }) { Text("Закрыть") } })
+        AlertDialog(onDismissRequest = { link = null },
+            title = { Text(stringResource(if (offset == null) R.string.reader_link else R.string.reader_footnote)) },
+            text = { Text(preview ?: stringResource(R.string.book_details_loading), Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) },
+            confirmButton = { if (offset != null) TextButton(onClick = { link = null; onJump(offset) }) { Text(stringResource(R.string.reader_go_to)) } },
+            dismissButton = { TextButton(onClick = { link = null }) { Text(stringResource(R.string.action_close)) } })
     }
     image?.let { (path, alt) -> Dialog(onDismissRequest = { image = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         var scale by remember(path) { mutableFloatStateOf(1f) }
         var translation by remember(path) { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
         val transform = rememberTransformableState { zoom, pan, _ -> scale = (scale * zoom).coerceIn(1f, 6f); translation = if (scale > 1f) translation + pan else androidx.compose.ui.geometry.Offset.Zero }
         Surface(Modifier.fillMaxSize()) { Column {
-            TextButton(onClick = { image = null }) { Text("Закрыть") }
-            AsyncImage(File(path), alt.ifBlank { "Иллюстрация" }, modifier = Modifier.weight(1f).fillMaxWidth().clipToBounds().graphicsLayer {
+            TextButton(onClick = { image = null }) { Text(stringResource(R.string.action_close)) }
+            AsyncImage(File(path), alt.ifBlank { stringResource(R.string.reader_image) }, modifier = Modifier.weight(1f).fillMaxWidth().clipToBounds().graphicsLayer {
                 scaleX = scale; scaleY = scale; translationX = translation.x; translationY = translation.y
             }.transformable(transform))
             if (alt.isNotBlank()) Text(alt, Modifier.padding(16.dp))

@@ -42,17 +42,21 @@ class BackupManager @Inject constructor(
                                 val id = cursor.getLong(0)
                                 val entry = "books/$id.${cursor.getString(2).lowercase().filter { it in 'a'..'z' }}"
                                 val uri = Uri.parse(cursor.getString(1))
-                                zip.putNextEntry(ZipEntry(entry))
-                                context.contentResolver.openInputStream(uri)?.use { it.copyTo(zip) }
-                                    ?: error("Cannot back up book #$id: source is unavailable")
-                                zip.closeEntry()
-                                snapshot.execSQL("UPDATE books SET uri=? WHERE id=?", arrayOf("bookmt-backup://$entry", id))
+                                val stream = runCatching { context.contentResolver.openInputStream(uri) }.getOrNull()
+                                if (stream != null) {
+                                    zip.putNextEntry(ZipEntry(entry))
+                                    stream.use { it.copyTo(zip) }
+                                    zip.closeEntry()
+                                    snapshot.execSQL("UPDATE books SET uri=? WHERE id=?", arrayOf<Any?>("bookmt-backup://$entry", id))
+                                } else {
+                                    android.util.Log.w("BackupManager", "Cannot back up book #$id: source is unavailable, keeping original record")
+                                }
                                 if (!cursor.isNull(3)) {
                                     val cover = File(cursor.getString(3))
                                     if (cover.isFile) {
                                         val coverEntry = "covers/$id.img"
                                         zip.putFile(coverEntry, cover)
-                                        snapshot.execSQL("UPDATE books SET cover_image_path=? WHERE id=?", arrayOf("bookmt-backup://$coverEntry", id))
+                                        snapshot.execSQL("UPDATE books SET cover_image_path=? WHERE id=?", arrayOf<Any?>("bookmt-backup://$coverEntry", id))
                                     }
                                 }
                             }
@@ -214,6 +218,10 @@ class BackupManager @Inject constructor(
                         File(target.path + "-shm").delete()
                     }
                 }
+                // Clean up orphaned book and cover files not present in the restored backup
+                val assetNames = assets.toSet()
+                File(context.filesDir, "books").listFiles()?.forEach { if ("books/${it.name}" !in assetNames) it.delete() }
+                File(context.filesDir, "covers").listFiles()?.forEach { if ("covers/${it.name}" !in assetNames) it.delete() }
             } catch (e: Exception) {
                 android.util.Log.e("BackupManager", "Failed to apply restore, aborting to prevent boot loop", e)
             } finally {

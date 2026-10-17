@@ -148,7 +148,7 @@ class ReaderViewModel @Inject constructor(
                         content = content,
                         currentOffset = startOffset,
                         navigationVersion = it.navigationVersion + 1,
-                        errorMessage = if (content.positionWarnings > 0) "Некоторые старые отметки не удалось точно сопоставить с текстом. Проверьте их в списке закладок." else it.errorMessage,
+                        errorMessage = if (content.positionWarnings > 0) "Some older bookmarks could not be accurately mapped to the text. Check them in the bookmarks list." else it.errorMessage,
                     )
                 }
                 // Write after publishing content so the initial checkpoint includes its anchor.
@@ -390,7 +390,7 @@ class ReaderViewModel @Inject constructor(
 
     fun onErrorShown() = _uiState.update { it.copy(errorMessage = null) }
 
-    fun onContentError(error: Throwable) = _uiState.update { it.copy(errorMessage = error.message ?: "Не удалось прочитать содержимое книги") }
+    fun onContentError(error: Throwable) = _uiState.update { it.copy(errorMessage = error.message ?: "Failed to open book content") }
 
     fun onRebuildReadingCache() {
         val speech = ttsJob

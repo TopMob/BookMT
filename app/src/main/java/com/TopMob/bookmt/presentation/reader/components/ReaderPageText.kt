@@ -17,6 +17,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
+import com.TopMob.bookmt.R
 import java.io.File
 
 @Composable
@@ -77,13 +79,15 @@ fun ReaderPageText(page: ReaderPage, style: TextStyle, bookmarks: List<Bookmark>
                 }
             }
         }
-        val inline = remember(snapshot, rich) { chapter.images.mapNotNull { image ->
+        val defaultAlt = stringResource(R.string.reader_image)
+        val unavailAlt = stringResource(R.string.reader_image_unavailable)
+        val inline = remember(snapshot, rich, defaultAlt, unavailAlt) { chapter.images.mapNotNull { image ->
             val placeholder = rich.placeholders.firstOrNull { it.start == image.offset }?.item ?: return@mapNotNull null
             val path = snapshot.resource(image.resourceId)
             "image:${image.offset}" to InlineTextContent(placeholder) {
-                if (path != null) AsyncImage(File(path), image.alt.ifBlank { "Иллюстрация" }, contentScale = ContentScale.Fit,
+                if (path != null) AsyncImage(File(path), image.alt.ifBlank { defaultAlt }, contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize().clickable { onImage(path, image.alt) })
-                else Text(image.alt.ifBlank { "Иллюстрация недоступна" })
+                else Text(image.alt.ifBlank { unavailAlt })
             }
         }.toMap() }
         Text(text, style = style, inlineContent = inline, onTextLayout = { layout = it }, modifier = Modifier.fillMaxSize().pointerInput(snapshot) {

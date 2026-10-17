@@ -205,7 +205,7 @@ fun ReaderBottomBar(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (activeVoiceId != null && ttsStatus == TtsStatus.PLAYING) {
                             Text(
-                                text = com.TopMob.bookmt.data.tts.DefaultVoices.name(activeVoiceId),
+                                text = com.TopMob.bookmt.data.tts.DefaultVoices.name(activeVoiceId, androidx.compose.ui.platform.LocalContext.current),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(end = 8.dp),

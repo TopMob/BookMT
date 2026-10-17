@@ -141,8 +141,15 @@ fun ReaderScreen(
     }
     BackHandler(state.overlay != ReaderOverlay.NONE) { viewModel.onDismissOverlay() }
     LaunchedEffect(state.errorMessage) {
-        state.errorMessage?.takeIf { state.content != null }?.let {
-            snackbar.showSnackbar(it)
+        state.errorMessage?.takeIf { state.content != null }?.let { message ->
+            val displayMessage = when (message) {
+                "Some older bookmarks could not be accurately mapped to the text. Check them in the bookmarks list." ->
+                    context.getString(R.string.reader_position_warning)
+                "Failed to open book content" ->
+                    context.getString(R.string.reader_open_error)
+                else -> message
+            }
+            snackbar.showSnackbar(displayMessage)
             viewModel.onErrorShown()
         }
     }
@@ -315,7 +322,7 @@ fun ReaderScreen(
                     val activeVoice = state.tts.activeVoiceId
                     if (activeVoice != null) {
                         Text(
-                            text = com.TopMob.bookmt.data.tts.DefaultVoices.name(activeVoice),
+                            text = com.TopMob.bookmt.data.tts.DefaultVoices.name(activeVoice, context),
                             style = MaterialTheme.typography.labelSmall,
                             color = colors.text,
                             modifier = Modifier.padding(end = 4.dp)

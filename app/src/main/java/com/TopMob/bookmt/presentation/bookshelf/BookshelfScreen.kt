@@ -217,7 +217,7 @@ fun BookshelfScreen(
                     title = { Text(stringResource(R.string.bookshelf_title)) },
                     navigationIcon = {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Filled.Menu, contentDescription = "Меню")
+                            Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.action_menu))
                         }
                     },
                     actions = {

@@ -124,4 +124,19 @@
     <string name="action_save">Сохранить</string>
     <string name="action_delete">Удалить</string>
     <string name="action_close">Закрыть</string>
+    <string name="action_menu">Меню</string>
+
+    <!-- Reader Footnotes, Images & Cache -->
+    <string name="reader_cache_error">Не удалось прочитать кэш книги. Исходная книга и отметки сохранены.</string>
+    <string name="reader_rebuild_cache">Пересоздать кэш</string>
+    <string name="reader_footnote_error">Не удалось прочитать примечание</string>
+    <string name="reader_link">Ссылка</string>
+    <string name="reader_footnote">Примечание</string>
+    <string name="reader_go_to">Перейти</string>
+    <string name="reader_image">Иллюстрация</string>
+    <string name="reader_image_unavailable">Иллюстрация недоступна</string>
+    <string name="reader_position_warning">Некоторые старые отметки не удалось точно сопоставить с текстом. Проверьте их в списке закладок.</string>
+    <string name="reader_open_error">Не удалось открыть содержимое книги</string>
+    <string name="voice_female">Женский · F1</string>
+    <string name="voice_male">Мужской · M1</string>
 </resources>
