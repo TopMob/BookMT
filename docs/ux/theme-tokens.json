@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "status": "proposed",
+  "encoding": "opaque-sRGB-RRGGBB",
+  "themes": {
+    "day": {
+      "background": "#F7F5F0", "readerBackground": "#FAF8F3",
+      "surface": "#FFFDFA", "surfaceRaised": "#FFFDFA", "surfaceInset": "#EDEAE2",
+      "text": "#292C29", "readerText": "#292C29", "secondaryText": "#5B605A",
+      "accent": "#38634F", "onAccent": "#FFFFFF",
+      "accentContainer": "#DDEBDF", "onAccentContainer": "#254735",
+      "border": "#7C8177", "divider": "#D8D9D0",
+      "error": "#A13232", "onError": "#FFFFFF", "errorContainer": "#FBE5E1",
+      "warning": "#78530C", "warningContainer": "#F6EAC7",
+      "success": "#356342", "successContainer": "#DFEFDF",
+      "selection": "#CBDDCE", "tts": "#DEEBDD", "search": "#F3E7BA", "searchCurrent": "#E6CD80",
+      "markYellow": "#F3E7BA", "markGreen": "#DCE9D4", "markBlue": "#D9E7F1", "markPink": "#EEDDE5",
+      "disabledText": "#8B8D86", "disabledSurface": "#ECEDE7",
+      "inverseSurface": "#292C29", "inverseText": "#F2F0EA", "inverseAccent": "#A9CDB3",
+      "scrim": "#000000", "scrimAlpha": 0.28
+    },
+    "sepia": {
+      "background": "#EDE2CA", "readerBackground": "#F3E9D2",
+      "surface": "#F8EFDB", "surfaceRaised": "#FCF3DF", "surfaceInset": "#E5D8BA",
+      "text": "#44382C", "readerText": "#44382C", "secondaryText": "#64543F",
+      "accent": "#68532D", "onAccent": "#FFFFFF",
+      "accentContainer": "#E7D7AC", "onAccentContainer": "#4A3A20",
+      "border": "#887657", "divider": "#D2C3A3",
+      "error": "#963A2F", "onError": "#FFFFFF", "errorContainer": "#F1D9C8",
+      "warning": "#72500D", "warningContainer": "#EEDCAA",
+      "success": "#41603A", "successContainer": "#DCE4C8",
+      "selection": "#DBCCAA", "tts": "#DCE3C5", "search": "#EADBAB", "searchCurrent": "#D9BE77",
+      "markYellow": "#EADBAB", "markGreen": "#DAE1C2", "markBlue": "#D3DFDC", "markPink": "#E7D2CA",
+      "disabledText": "#998A71", "disabledSurface": "#E5DBC7",
+      "inverseSurface": "#44382C", "inverseText": "#F3E9D2", "inverseAccent": "#E1C78C",
+      "scrim": "#000000", "scrimAlpha": 0.28
+    },
+    "night": {
+      "background": "#191D1C", "readerBackground": "#191D1C",
+      "surface": "#212725", "surfaceRaised": "#2A312E", "surfaceInset": "#141816",
+      "text": "#DCE1D9", "readerText": "#DCE1D9", "secondaryText": "#ABB5AB",
+      "accent": "#A9CDB3", "onAccent": "#193624",
+      "accentContainer": "#304A39", "onAccentContainer": "#CDE6D2",
+      "border": "#7B897E", "divider": "#3B453E",
+      "error": "#F0AAA0", "onError": "#561C17", "errorContainer": "#4B2B28",
+      "warning": "#E6C880", "warningContainer": "#443B22",
+      "success": "#A7D0AA", "successContainer": "#293E2C",
+      "selection": "#3B5141", "tts": "#2E4434", "search": "#453E28", "searchCurrent": "#574A2B",
+      "markYellow": "#453E28", "markGreen": "#2C422F", "markBlue": "#293E4D", "markPink": "#49323F",
+      "disabledText": "#6D786F", "disabledSurface": "#2B322D",
+      "inverseSurface": "#DCE1D9", "inverseText": "#212725", "inverseAccent": "#38634F",
+      "scrim": "#000000", "scrimAlpha": 0.48
+    },
+    "black": {
+      "background": "#000000", "readerBackground": "#000000",
+      "surface": "#101310", "surfaceRaised": "#191F1A", "surfaceInset": "#090C09",
+      "text": "#CDD3C9", "readerText": "#CDD3C9", "secondaryText": "#A0AA9E",
+      "accent": "#A3C9A9", "onAccent": "#19331E",
+      "accentContainer": "#263C2A", "onAccentContainer": "#C7E2CA",
+      "border": "#71806F", "divider": "#2D372D",
+      "error": "#EAA49B", "onError": "#501C17", "errorContainer": "#3C221F",
+      "warning": "#DEC27D", "warningContainer": "#362F1B",
+      "success": "#A1C9A2", "successContainer": "#203322",
+      "selection": "#304532", "tts": "#233727", "search": "#38321F", "searchCurrent": "#4B3E23",
+      "markYellow": "#38321F", "markGreen": "#213523", "markBlue": "#20313E", "markPink": "#3B2834",
+      "disabledText": "#636D60", "disabledSurface": "#1E261E",
+      "inverseSurface": "#CDD3C9", "inverseText": "#101310", "inverseAccent": "#345E4B",
+      "scrim": "#000000", "scrimAlpha": 0.56
+    }
+  }
+}
