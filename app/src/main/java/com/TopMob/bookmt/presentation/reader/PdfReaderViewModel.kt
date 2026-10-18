@@ -86,13 +86,12 @@ class PdfReaderViewModel @Inject constructor(
         if (mutable.value.count == 0) return
         val page = index.coerceIn(0, mutable.value.count - 1)
         renderJob?.cancel()
-        val oldBitmap = mutable.value.bitmap
         mutable.update { it.copy(page = page, loading = true, bitmap = null, error = null) }
-        oldBitmap?.recycle()
         renderJob = viewModelScope.launch {
             var generatedBitmap: Bitmap? = null
+            var published = false
             try {
-                generatedBitmap = withContext(dispatchers.default) {
+                val rendered = withContext(dispatchers.default) {
                     mutex.withLock {
                         val pdf = renderer ?: error("PDF closed")
                         pdf.openPage(page).use { source ->
@@ -103,22 +102,25 @@ class PdfReaderViewModel @Inject constructor(
                             try {
                                 bitmap.eraseColor(Color.WHITE)
                                 source.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                                // Retain ownership here even if withContext cancels on its return.
+                                generatedBitmap = bitmap
                                 bitmap
                             } catch (e: Exception) { bitmap.recycle(); throw e }
                         }
                     }
                 }
                 ensureActive()
-                val prev = mutable.value.bitmap
-                mutable.update { it.copy(bitmap = generatedBitmap, loading = false) }
-                prev?.recycle()
+                mutable.update { it.copy(bitmap = rendered, loading = false) }
+                // Compose may retain this bitmap for drawing after the state changes. Let the GC
+                // release published bitmaps once both the renderer and UI have dropped them.
+                published = true
                 repository.updateProgress(id, (page + 1f) / mutable.value.count, page)
             } catch (e: CancellationException) {
-                generatedBitmap?.recycle()
                 throw e
             } catch (e: Exception) {
-                generatedBitmap?.recycle()
                 mutable.update { it.copy(loading = false, error = e.message) }
+            } finally {
+                if (!published) generatedBitmap?.recycle()
             }
         }
     }
@@ -144,7 +146,7 @@ class PdfReaderViewModel @Inject constructor(
     }
     override fun onCleared() {
         pause()
-        mutable.value.bitmap?.recycle()
+        mutable.update { it.copy(bitmap = null) }
         viewModelScope.launch(NonCancellable + dispatchers.io) {
             mutex.withLock { renderer?.close(); renderer = null; temporary?.delete() }
         }

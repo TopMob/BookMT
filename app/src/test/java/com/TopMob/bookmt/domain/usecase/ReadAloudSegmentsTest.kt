@@ -8,6 +8,24 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ReadAloudSegmentsTest {
+    @Test fun laterChaptersAndStorageBlocksKeepAbsoluteSourceRanges() = runTest {
+        val first = "Первое предложение.\n"
+        val second = "Второе\u00AD предложение!\nТретий абзац."
+        val chapters = listOf(Chapter(0, "", first, 0),
+            Chapter(1, "", second, first.length, sourceId = "chapter:0", sourceOffset = first.length))
+        val content = BookContent("Book", null, chapters, TableOfContents.EMPTY)
+        val engine = CaptureEngine()
+        ReadAloudUseCase(engine).start(content, first.length)
+        val text = first + second
+        assertTrue(engine.segments.size >= 2)
+        engine.segments.forEach {
+            assertTrue(it.endOffset > it.startOffset)
+            assertEquals(it.text, text.substring(it.startOffset, it.endOffset).replace("\u00AD", ""))
+        }
+        assertEquals(first.length, engine.segments.first().startOffset)
+        assertEquals(text.length, engine.segments.last().endOffset)
+    }
+
     @Test fun phrasesKeepOriginalOffsetsAndDistinctParagraphPauses() = runTest {
         val text = "Первое предложение. Второе предложение!\nСледующий абзац."
         val engine = CaptureEngine()

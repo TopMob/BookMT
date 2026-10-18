@@ -14,6 +14,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /** Backs the book details/edit screen: observes one book and persists user edits to its card. */
@@ -21,7 +26,7 @@ import javax.inject.Inject
 class BookDetailsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: BookRepository,
-    @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
+    @param:dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
 ) : ViewModel() {
 
     private val bookId: Long = checkNotNull(savedStateHandle[Screen.ARG_BOOK_ID]) {
@@ -36,6 +41,7 @@ class BookDetailsViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
     fun clearError() { _error.value = null }
+    private val importedCovers = java.util.Collections.synchronizedSet(mutableSetOf<java.io.File>())
 
     fun importCover(uri: android.net.Uri, onImported: (String) -> Unit) {
         if (_isSaving.value) return
@@ -45,6 +51,7 @@ class BookDetailsViewModel @Inject constructor(
                 val path = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     val dir = java.io.File(context.filesDir, "covers").apply { mkdirs() }
                     val target = java.io.File(dir, "cover_${bookId}_${java.util.UUID.randomUUID()}.img")
+                    importedCovers += target
                     try {
                         context.contentResolver.openInputStream(uri)?.use { input ->
                             target.outputStream().use { output ->
@@ -68,7 +75,12 @@ class BookDetailsViewModel @Inject constructor(
                 onImported(path)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { _error.value = e.message ?: "Cannot import cover" }
-            finally { _isSaving.value = false }
+            finally {
+                _isSaving.value = false
+                if (!currentCoroutineContext().isActive) {
+                    withContext(NonCancellable + Dispatchers.IO) { cleanImportedCovers() }
+                }
+            }
         }
     }
 
@@ -84,14 +96,15 @@ class BookDetailsViewModel @Inject constructor(
         _isSaving.value = true
         viewModelScope.launch {
             try {
-            repository.updateMetadata(
-                bookId = bookId,
-                title = title.trim().ifBlank { "Untitled" },
-                author = author?.trim()?.ifBlank { null },
-                description = description?.trim()?.ifBlank { null },
-                coverImagePath = coverImagePath,
-                tags = tags.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
-            )
+                repository.updateMetadata(
+                    bookId = bookId,
+                    title = title.trim().ifBlank { "Untitled" },
+                    author = author?.trim()?.ifBlank { null },
+                    description = description?.trim()?.ifBlank { null },
+                    coverImagePath = coverImagePath,
+                    tags = tags.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
+                )
+                withContext(Dispatchers.IO) { cleanImportedCovers() }
                 onSaved()
             } catch (e: CancellationException) {
                 throw e
@@ -101,5 +114,19 @@ class BookDetailsViewModel @Inject constructor(
                 _isSaving.value = false
             }
         }
+    }
+
+    private suspend fun cleanImportedCovers() {
+        // Reload after a cancelled save: Room may have committed before cancellation was delivered.
+        val persisted = runCatching { repository.getBook(bookId)?.coverImagePath }.getOrElse { return }
+        val files = synchronized(importedCovers) { importedCovers.toList() }
+        files.forEach { file ->
+            if (file.absolutePath == persisted || !file.exists() || file.delete()) importedCovers.remove(file)
+        }
+    }
+
+    override fun onCleared() {
+        viewModelScope.launch(NonCancellable + Dispatchers.IO) { cleanImportedCovers() }
+        super.onCleared()
     }
 }

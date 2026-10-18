@@ -18,6 +18,7 @@ import com.TopMob.bookmt.domain.usecase.UpdateReadingProgressUseCase
 import com.TopMob.bookmt.presentation.navigation.Screen
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import android.os.SystemClock
 import com.TopMob.bookmt.domain.tts.TtsStatus
@@ -28,6 +29,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 
 /**
@@ -59,11 +63,14 @@ class ReaderViewModel @Inject constructor(
     private var searchJob: Job? = null
     private val navigationHistory = ArrayDeque<Int>()
     private var progressSaveJob: Job? = null
+    private val progressWriteMutex = Mutex()
     private var ttsJob: Job? = null
     private var readingPosition = 0
     private var lastListeningPosition = -1
     private var speechSession = -1L
     private var hasLoaded = false
+    private val settingsReady = CompletableDeferred<Unit>()
+    private var checkpointOnViewportUpdate = false
 
     /** Wall-clock start of the current foreground reading session, or null when paused. */
     private var sessionStartMs: Long? = null
@@ -79,6 +86,7 @@ class ReaderViewModel @Inject constructor(
     private fun observeSettings() = viewModelScope.launch {
         settingsRepository.settings.collect { settings ->
             _uiState.update { it.copy(settings = settings) }
+            settingsReady.complete(Unit)
         }
     }
 
@@ -122,6 +130,7 @@ class ReaderViewModel @Inject constructor(
     }
 
     private fun loadContent() = viewModelScope.launch {
+        ReaderExitWrites.await(bookId)
         val book = bookRepository.getBook(bookId)
         if (book?.format == com.TopMob.bookmt.domain.model.BookFormat.PDF) {
             _uiState.update { it.copy(book = book, isLoading = false) }
@@ -129,6 +138,9 @@ class ReaderViewModel @Inject constructor(
         }
         when (val result = openBook(bookId)) {
             is Resource.Success -> {
+                // Avoid laying out a cached book with default settings, then throwing
+                // that work away as soon as DataStore supplies the user's font/margins.
+                settingsReady.await()
                 val content = result.data
                 val refreshed = bookRepository.getBook(bookId) ?: book
                 val explicit = (if (hasLoaded) readingPosition else initialOffset.takeIf { it >= 0 })?.let { offset ->
@@ -167,15 +179,23 @@ class ReaderViewModel @Inject constructor(
 
     /** Used by scroll mode, which reports the top-most visible character offset. */
     fun onScrollOffsetChanged(offset: Int) {
-        if (_uiState.value.content == null) return
+        if (_uiState.value.content == null) {
+            return
+        }
         val bounded = offset.coerceIn(0, (_uiState.value.totalLength - 1).coerceAtLeast(0))
         _uiState.update { it.copy(currentOffset = bounded) }
-        if (ttsJob?.isActive != true) { readingPosition = bounded; scheduleProgressSave(bounded) }
+        if (ttsJob?.isActive != true) {
+            readingPosition = bounded
+            if (checkpointOnViewportUpdate) {
+                val length = _uiState.value.totalLength
+                ReaderExitWrites.enqueue(viewModelScope, bookId) { persistProgress(bounded, length) }
+            } else scheduleProgressSave()
+        }
     }
 
     fun onPageChanged(page: Int, total: Int) {
         _uiState.update { it.copy(currentPage = page, totalPages = kotlin.math.abs(total), paginationReady = total > 0) }
-        if (total > 0 && page == total && ttsJob?.isActive != true) scheduleProgressSave(readingPosition)
+        if (total > 0 && page == total && ttsJob?.isActive != true) scheduleProgressSave()
     }
 
     fun onPrevChapter() {
@@ -208,28 +228,39 @@ class ReaderViewModel @Inject constructor(
     private fun moveToOffset(offset: Int, save: Boolean = true) {
         val bounded = offset.coerceIn(0, (_uiState.value.totalLength - 1).coerceAtLeast(0))
         _uiState.update { it.copy(currentOffset = bounded, navigationVersion = it.navigationVersion + 1, canReturn = navigationHistory.isNotEmpty()) }
-        if (save) { readingPosition = bounded; scheduleProgressSave(bounded) }
+        if (save) { readingPosition = bounded; scheduleProgressSave() }
     }
 
-    private fun scheduleProgressSave(offset: Int) {
-        progressSaveJob?.cancel()
+    private fun scheduleProgressSave() {
+        // Bound the unsaved interval even during continuous scrolling. A debounce
+        // postponed every 120 ms could otherwise leave minutes of reading unsaved.
+        if (progressSaveJob?.isActive == true) return
         progressSaveJob = viewModelScope.launch {
-            delay(PROGRESS_SAVE_DEBOUNCE_MS)
-            persistProgress(offset, _uiState.value.totalLength)
+            do {
+                delay(PROGRESS_SAVE_INTERVAL_MS)
+                val position = readingPosition
+                persistProgress(position, _uiState.value.totalLength)
+            } while (position != readingPosition)
         }
     }
 
     private suspend fun persistProgress(offset: Int, length: Int) {
-        try {
-            val state = _uiState.value
-            val progress = if (!state.isLoading && state.paginationReady && state.totalPages > 0 && state.currentPage == state.totalPages && state.content != null && state.currentOffset == offset && ttsJob?.isActive != true && (length <= 0 || offset >= length * 0.75f)) 1f
-                else if (length > 0) (offset.toFloat() / length).coerceIn(0f, 1f) else 0f
-            val anchor = kotlinx.coroutines.withContext(dispatchers.io) { state.content?.let { com.TopMob.bookmt.domain.model.TextAnchors.capture(it, offset)?.encode() } }
-            bookRepository.saveReadingPosition(bookId, progress, offset, anchor, state.content?.revision ?: 2)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            _uiState.update { it.copy(errorMessage = e.message ?: "Failed to save reading progress") }
+        // Once a checkpoint starts, navigation/cancellation cannot interrupt it or
+        // let an older asynchronous write finish after a newer checkpoint.
+        withContext(NonCancellable) {
+            progressWriteMutex.withLock {
+                try {
+                    val state = _uiState.value
+                    val progress = if (!state.isLoading && state.paginationReady && state.totalPages > 0 && state.currentPage == state.totalPages && state.content != null && state.currentOffset == offset && ttsJob?.isActive != true && (length <= 0 || offset >= length * 0.75f)) 1f
+                        else if (length > 0) (offset.toFloat() / length).coerceIn(0f, 1f) else 0f
+                    val anchor = kotlinx.coroutines.withContext(dispatchers.io) { state.content?.let { com.TopMob.bookmt.domain.model.TextAnchors.capture(it, offset)?.encode() } }
+                    bookRepository.saveReadingPosition(bookId, progress, offset, anchor, state.content?.revision ?: 2)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    _uiState.update { it.copy(errorMessage = e.message ?: "Failed to save reading progress") }
+                }
+            }
         }
     }
 
@@ -246,16 +277,21 @@ class ReaderViewModel @Inject constructor(
 
     /** Called when the reader returns to the foreground; starts a new timing session. */
     fun onReadingResumed() {
+        checkpointOnViewportUpdate = false
         if (sessionStartMs == null) sessionStartMs = SystemClock.elapsedRealtime()
     }
 
     /** Called when the reader leaves the foreground; persists the elapsed reading time. */
     fun onReadingPaused() {
+        // Disposal can deliver the final viewport after ON_PAUSE or even onCleared.
+        // Such a callback must flush directly, not launch a timer in a cancelled scope.
+        checkpointOnViewportUpdate = true
         _uiState.update { it.copy(autoPaging = false) }
         progressSaveJob?.cancel()
         val state = _uiState.value
+        val position = readingPosition
         if (state.content != null) {
-            viewModelScope.launch(NonCancellable) { persistProgress(readingPosition, state.totalLength) }
+            ReaderExitWrites.enqueue(viewModelScope, bookId) { persistProgress(position, state.totalLength) }
         }
         val start = sessionStartMs ?: return
         sessionStartMs = null
@@ -278,8 +314,14 @@ class ReaderViewModel @Inject constructor(
         val content = _uiState.value.content ?: return
         searchJob = viewModelScope.launch {
             delay(250)
-            val results = kotlinx.coroutines.withContext(dispatchers.default) { BookTextSearch.find(content, boundedQuery, 1001) }
-            _uiState.update { it.copy(searchResults = results.take(1000), searchBusy = false, searchLimited = results.size > 1000) }
+            try {
+                val results = kotlinx.coroutines.withContext(dispatchers.default) { BookTextSearch.find(content, boundedQuery, 1001) }
+                _uiState.update { it.copy(searchResults = results.take(1000), searchBusy = false, searchLimited = results.size > 1000) }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _uiState.update { it.copy(searchBusy = false, errorMessage = error.message ?: "Failed to search book content") }
+            }
         }
     }
 
@@ -413,7 +455,7 @@ class ReaderViewModel @Inject constructor(
     }
 
     private companion object {
-        const val PROGRESS_SAVE_DEBOUNCE_MS = 800L
+        const val PROGRESS_SAVE_INTERVAL_MS = 250L
         const val SNIPPET_LENGTH = 120
     }
 }

@@ -6,6 +6,9 @@ import com.TopMob.bookmt.domain.model.BookSortOrder
 import com.TopMob.bookmt.domain.repository.BookRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flowOn
+import com.TopMob.bookmt.core.common.DispatcherProvider
+import com.TopMob.bookmt.core.common.DefaultDispatcherProvider
 import javax.inject.Inject
 
 /**
@@ -15,12 +18,13 @@ import javax.inject.Inject
  */
 class GetBooksUseCase @Inject constructor(
     private val repository: BookRepository,
+    private val dispatchers: DispatcherProvider = DefaultDispatcherProvider(),
 ) {
     operator fun invoke(query: BookQuery): Flow<List<Book>> =
-        repository.observeBooks().map { books -> books.applyQuery(query) }
+        repository.observeBooks().map { books -> filter(books, query) }.flowOn(dispatchers.default)
 
-    private fun List<Book>.applyQuery(query: BookQuery): List<Book> {
-        val filtered = filter { book ->
+    fun filter(books: List<Book>, query: BookQuery): List<Book> {
+        val filtered = books.filter { book ->
             val matchesSearch = query.searchQuery.isBlank() ||
                 book.title.contains(query.searchQuery, ignoreCase = true) ||
                 (book.author?.contains(query.searchQuery, ignoreCase = true) == true)
@@ -28,12 +32,12 @@ class GetBooksUseCase @Inject constructor(
             val matchesTags = query.tags.isEmpty() || query.tags.all { it in book.tags }
 
             val matchesProgress = !query.onlyInProgress ||
-                (book.progress > 0f && book.progress < 1f)
+                (book.progress > 0f && !book.isFinished)
 
             val matchesStatus = when (query.status) {
                 com.TopMob.bookmt.domain.model.LibraryStatus.ALL -> true
-                com.TopMob.bookmt.domain.model.LibraryStatus.UNREAD -> book.progress <= 0f
-                com.TopMob.bookmt.domain.model.LibraryStatus.READING -> book.progress > 0f && book.progress < 1f
+                com.TopMob.bookmt.domain.model.LibraryStatus.UNREAD -> book.progress <= 0f && !book.isFinished
+                com.TopMob.bookmt.domain.model.LibraryStatus.READING -> book.progress > 0f && !book.isFinished
                 com.TopMob.bookmt.domain.model.LibraryStatus.FINISHED -> book.isFinished
             }
             matchesSearch && matchesTags && matchesProgress && matchesStatus &&

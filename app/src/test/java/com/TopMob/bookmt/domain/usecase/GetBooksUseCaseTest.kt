@@ -41,6 +41,20 @@ class GetBooksUseCaseTest {
         assertEquals(listOf(2L), result.map { it.id })
     }
 
+    @Test fun `completed books cannot also be unread or in progress`() = runTest {
+        val books = listOf(
+            Book(id = 1, uri = "one", title = "Finished", completed = true, progress = 0.4f),
+            Book(id = 2, uri = "two", title = "Finished at start", completed = true, progress = 0f),
+            Book(id = 3, uri = "three", title = "Reading", progress = 0.2f),
+            Book(id = 4, uri = "four", title = "Untouched", progress = 0f),
+        )
+        val filter = GetBooksUseCase(FakeBookRepository(books))
+        assertEquals(setOf(1L, 2L), filter(BookQuery(status = com.TopMob.bookmt.domain.model.LibraryStatus.FINISHED)).first().map { it.id }.toSet())
+        assertEquals(listOf(3L), filter(BookQuery(status = com.TopMob.bookmt.domain.model.LibraryStatus.READING)).first().map { it.id })
+        assertEquals(listOf(4L), filter(BookQuery(status = com.TopMob.bookmt.domain.model.LibraryStatus.UNREAD)).first().map { it.id })
+        assertEquals(listOf(3L), filter(BookQuery(onlyInProgress = true)).first().map { it.id })
+    }
+
     private class FakeBookRepository(private val books: List<Book>) : BookRepository {
         override fun observeBooks(): Flow<List<Book>> = flowOf(books)
         override fun observeBook(bookId: Long): Flow<Book?> = flowOf(books.find { it.id == bookId })

@@ -33,19 +33,17 @@ class AppSettingsDataStore(private val context: Context) {
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { prefs ->
             val lang = decodeLanguage(prefs[Keys.LANGUAGE])
-            cachedLanguage = lang
+            cacheLanguage(context, lang)
             AppSettings(language = lang)
         }
 
     suspend fun update(transform: (AppSettings) -> AppSettings) {
-        context.appDataStore.edit { prefs ->
+        val updated = context.appDataStore.edit { prefs ->
             val current = AppSettings(language = decodeLanguage(prefs[Keys.LANGUAGE]))
             val next = transform(current)
             prefs[Keys.LANGUAGE] = next.language.name
-            cachedLanguage = next.language
-            context.getSharedPreferences(FAST_CACHE_PREFS, Context.MODE_PRIVATE)
-                .edit().putString(KEY_CACHED_LANGUAGE, next.language.name).apply()
         }
+        cacheLanguage(context, decodeLanguage(updated[Keys.LANGUAGE]))
     }
 
     private object Keys {
@@ -61,6 +59,20 @@ class AppSettingsDataStore(private val context: Context) {
 
         private fun decodeLanguage(name: String?): AppLanguage =
             AppLanguage.entries.firstOrNull { it.name == name } ?: AppLanguage.SYSTEM
+
+        private fun cacheLanguage(context: Context, language: AppLanguage) {
+            cachedLanguage = language
+            val prefs = context.getSharedPreferences(FAST_CACHE_PREFS, Context.MODE_PRIVATE)
+            if (prefs.getString(KEY_CACHED_LANGUAGE, null) != language.name) {
+                prefs.edit().putString(KEY_CACHED_LANGUAGE, language.name).apply()
+            }
+        }
+
+        fun invalidateLanguageCache(context: Context) {
+            cachedLanguage = null
+            check(context.getSharedPreferences(FAST_CACHE_PREFS, Context.MODE_PRIVATE)
+                .edit().clear().commit()) { "Cannot invalidate restored language cache" }
+        }
 
         /**
          * Reads the persisted language synchronously without blocking on DataStore coroutine dispatchers.
@@ -84,14 +96,14 @@ class AppSettingsDataStore(private val context: Context) {
                 try {
                     withTimeoutOrNull(500) {
                         decodeLanguage(context.appDataStore.data.first()[Keys.LANGUAGE])
-                    } ?: AppLanguage.SYSTEM
+                    }
                 } catch (_: Exception) {
-                    AppLanguage.SYSTEM
+                    null
                 }
             }
-            cachedLanguage = lang
-            prefs?.edit()?.putString(KEY_CACHED_LANGUAGE, lang.name)?.apply()
-            return lang
+            // A timeout is not a persisted setting. Let the DataStore collector fill the cache.
+            if (lang != null) cacheLanguage(context, lang)
+            return lang ?: AppLanguage.SYSTEM
         }
     }
 }

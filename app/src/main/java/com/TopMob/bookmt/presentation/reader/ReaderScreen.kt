@@ -140,13 +140,15 @@ fun ReaderScreen(
         }
     }
     BackHandler(state.overlay != ReaderOverlay.NONE) { viewModel.onDismissOverlay() }
-    LaunchedEffect(state.errorMessage) {
+    val positionWarning = stringResource(R.string.reader_position_warning)
+    val openError = stringResource(R.string.reader_open_error)
+    LaunchedEffect(state.errorMessage, positionWarning, openError) {
         state.errorMessage?.takeIf { state.content != null }?.let { message ->
             val displayMessage = when (message) {
                 "Some older bookmarks could not be accurately mapped to the text. Check them in the bookmarks list." ->
-                    context.getString(R.string.reader_position_warning)
+                    positionWarning
                 "Failed to open book content" ->
-                    context.getString(R.string.reader_open_error)
+                    openError
                 else -> message
             }
             snackbar.showSnackbar(displayMessage)
@@ -435,6 +437,7 @@ private fun ReaderSurface(
     modifier: Modifier = Modifier,
 ) {
     val content = state.content
+    val textStyle = remember(state.settings, colors.text) { state.settings.toTextStyle(colors.text) }
     when {
         state.isLoading -> Box(Modifier.fillMaxSize()) {
             CircularProgressIndicator(Modifier.align(Alignment.Center))
@@ -451,7 +454,7 @@ private fun ReaderSurface(
 
         else -> ReaderContent(
             content = content,
-            textStyle = state.settings.toTextStyle(colors.text),
+            textStyle = textStyle,
             colors = colors,
             horizontalPadding = state.settings.horizontalMarginDp,
             verticalPadding = state.settings.verticalMarginDp,

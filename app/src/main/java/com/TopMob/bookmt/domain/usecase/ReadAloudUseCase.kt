@@ -40,7 +40,7 @@ class ReadAloudUseCase @Inject constructor(private val engine: TtsEngine) {
                     else -> 80
                 }
                 if (batch.any(Char::isLetterOrDigit)) emit(TextSegment(batch, SpeakerRole.NARRATOR,
-                    chapter.startOffset + cursor, sourceEndOffset = contentEnd,
+                    chapter.startOffset + cursor, sourceEndOffset = chapter.startOffset + contentEnd,
                     pauseAfterMs = pause))
                 cursor = next
             }

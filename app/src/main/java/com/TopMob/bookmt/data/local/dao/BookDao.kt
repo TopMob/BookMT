@@ -29,6 +29,9 @@ interface BookDao {
     @Query("UPDATE books SET uri = :uri, file_size = :size WHERE id = :bookId")
     suspend fun updateSource(bookId: Long, uri: String, size: Long)
 
+    @Query("SELECT COUNT(*) FROM books WHERE cover_image_path = :path")
+    suspend fun countByCoverPath(path: String): Int
+
     @Update
     suspend fun update(book: BookEntity)
 

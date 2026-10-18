@@ -4,11 +4,55 @@ import androidx.compose.ui.text.TextStyle
 import com.TopMob.bookmt.domain.model.BookContent
 import java.lang.ref.WeakReference
 
-/** One recent layout, bounded by text size. Never owns the source book or persists layout offsets. */
+/** Disposable page boundaries; durable reading positions remain independent source-text anchors. */
 internal object ReaderPageCache {
     private data class Entry(val content: WeakReference<BookContent>, val style: TextStyle,
         val width: Int, val height: Int, val density: Float, val fontScale: Float, val formatting: Boolean, val pages: WeakReference<List<ReaderPage>>)
     private var entry: Entry? = null
+
+    /** Retain completed blocks even if the reader closes before book-wide pagination finishes. */
+    fun getChapter(content: BookContent, style: TextStyle, width: Int, height: Int, density: Float,
+        fontScale: Float, formatting: Boolean, chapter: Int): List<ReaderPage>? {
+        val base = layoutFile(content, style, width, height, density, fontScale, formatting) ?: return null
+        val file = java.io.File(java.io.File(base.parentFile, base.nameWithoutExtension + ".blocks"), "$chapter.bin")
+        return runCatching {
+            java.io.DataInputStream(file.inputStream().buffered()).use { input ->
+                check(input.readInt() == 0x424D5042)
+                val descriptor = checkNotNull(content.descriptor(chapter))
+                val count = input.readInt(); check(count in 0..100_000)
+                var cursor = 0
+                val pages = List(count) {
+                    val start = input.readInt(); val end = input.readInt()
+                    check(start == cursor && end > start && end <= descriptor.length)
+                    cursor = end
+                    ReaderPage(content, chapter, start, end)
+                }
+                check(cursor == descriptor.length && input.read() == -1)
+                pages
+            }
+        }.getOrNull()
+    }
+
+    @Synchronized
+    fun putChapter(content: BookContent, style: TextStyle, width: Int, height: Int, density: Float,
+        fontScale: Float, formatting: Boolean, chapter: Int, pages: List<ReaderPage>) {
+        val base = layoutFile(content, style, width, height, density, fontScale, formatting) ?: return
+        val directory = java.io.File(base.parentFile, base.nameWithoutExtension + ".blocks")
+        val file = java.io.File(directory, "$chapter.bin")
+        val temporary = java.io.File(directory, "$chapter.tmp")
+        runCatching {
+            if (!directory.exists()) {
+                check(directory.mkdirs())
+                base.parentFile?.listFiles()?.filter { it.isDirectory && it.name.startsWith("layout-") && it.name.endsWith(".blocks") }
+                    ?.sortedByDescending { it.lastModified() }?.drop(8)?.filter { it != directory }?.forEach { it.deleteRecursively() }
+            }
+            java.io.DataOutputStream(temporary.outputStream().buffered()).use { out ->
+                out.writeInt(0x424D5042); out.writeInt(pages.size)
+                pages.forEach { out.writeInt(it.localOffset); out.writeInt(it.localOffset + it.length) }
+            }
+            replaceCacheFile(temporary, file)
+        }.onFailure { temporary.delete() }
+    }
 
     @Synchronized
     fun get(content: BookContent, style: TextStyle, width: Int, height: Int, density: Float, fontScale: Float, formatting: Boolean = true): List<ReaderPage>? {
@@ -40,10 +84,18 @@ internal object ReaderPageCache {
                 out.writeInt(0x424D5042); out.writeInt(pages.size)
                 pages.forEach { out.writeInt(it.chapterIndex); out.writeInt(it.localOffset); out.writeInt(it.localOffset + it.length) }
             }
-            check(temporary.renameTo(file))
+            replaceCacheFile(temporary, file)
             file.parentFile?.listFiles()?.filter { it.name.startsWith("layout-") && it.extension == "bin" }
                 ?.sortedByDescending { it.lastModified() }?.drop(8)?.forEach { it.delete() }
         }.onFailure { temporary.delete() }
+    }
+
+    private fun replaceCacheFile(temporary: java.io.File, file: java.io.File) {
+        if (temporary.renameTo(file)) return
+        // Some development filesystems cannot rename over an existing file. The
+        // cache is disposable: a missing entry is safely regenerated on next open.
+        check(!file.exists() || file.delete())
+        check(temporary.renameTo(file))
     }
 
     private fun layoutFile(content: BookContent, style: TextStyle, width: Int, height: Int, density: Float, fontScale: Float, formatting: Boolean): java.io.File? {

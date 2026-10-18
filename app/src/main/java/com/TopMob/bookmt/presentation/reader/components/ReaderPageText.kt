@@ -26,14 +26,26 @@ fun ReaderPageText(page: ReaderPage, style: TextStyle, bookmarks: List<Bookmark>
     onSelection: (ReaderSelection) -> Unit, onTap: (Float, Float) -> Unit, modifier: Modifier = Modifier,
     formatting: Boolean = true, viewportHeightPx: Int = 1000, onLink: (String) -> Unit = {}, onImage: (String, String) -> Unit = { _, _ -> },
     onLoadError: (Throwable) -> Unit = {}, spokenSegment: com.TopMob.bookmt.domain.model.TextSegment? = null,
-    ttsHighlightColor: Color = Color(0x6642A5F5)) {
+    ttsHighlightColor: Color = Color(0x6642A5F5),
+    onPageLayout: (TextLayoutResult?) -> Unit = {}) {
     val latestError by rememberUpdatedState(onLoadError)
     val loaded by produceState<ReaderPage?>(null, page) {
         try { value = withContext(Dispatchers.IO) { page.materialized() } }
         catch (e: kotlinx.coroutines.CancellationException) { throw e }
         catch (e: Exception) { latestError(e) }
     }
-    val snapshot = loaded ?: return
+    val latestPageLayout by rememberUpdatedState(onPageLayout)
+    DisposableEffect(page) {
+        val releaseLayout = onPageLayout
+        onDispose { releaseLayout(null) }
+    }
+    val snapshot = loaded
+    if (snapshot == null) {
+        // A zero-height lazy item lets initial scrollToItem() consume the requested
+        // offset before its text arrives, and can compose thousands of empty pages.
+        Box(modifier.height(with(LocalDensity.current) { viewportHeightPx.toDp() }))
+        return
+    }
     val chapter = remember(snapshot) { snapshot.chapter() }
     var layout by remember(snapshot) { mutableStateOf<TextLayoutResult?>(null) }
     val latestSelection by rememberUpdatedState(onSelection)
@@ -70,7 +82,6 @@ fun ReaderPageText(page: ReaderPage, style: TextStyle, bookmarks: List<Bookmark>
                         addStyle(
                             SpanStyle(
                                 background = ttsHighlightColor,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
                             ),
                             from,
                             to,
@@ -90,7 +101,7 @@ fun ReaderPageText(page: ReaderPage, style: TextStyle, bookmarks: List<Bookmark>
                 else Text(image.alt.ifBlank { unavailAlt })
             }
         }.toMap() }
-        Text(text, style = style, inlineContent = inline, onTextLayout = { layout = it }, modifier = Modifier.fillMaxSize().pointerInput(snapshot) {
+        Text(text, style = style, inlineContent = inline, onTextLayout = { layout = it; latestPageLayout(it) }, modifier = Modifier.fillMaxSize().pointerInput(snapshot) {
             detectTapGestures(onTap = { point ->
                 val offset = layout?.getOffsetForPosition(point)
                 val link = offset?.let { value -> chapter.links.firstOrNull { value in it.start until it.end } }

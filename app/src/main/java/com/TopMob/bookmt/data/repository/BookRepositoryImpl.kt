@@ -42,6 +42,7 @@ class BookRepositoryImpl(
     private data class CachedContent(val key: ContentKey, val content: BookContent)
     @Volatile private var cachedContent: CachedContent? = null
 
+    private val assetMutex = kotlinx.coroutines.sync.Mutex()
     private val offlineMutex = kotlinx.coroutines.sync.Mutex()
     private val contentMutex = kotlinx.coroutines.sync.Mutex()
 
@@ -207,7 +208,11 @@ class BookRepositoryImpl(
         tags: List<String>,
     ) {
         withContext(dispatchers.io) {
-            bookDao.updateMetadata(bookId, title, author, description, coverImagePath, tags)
+            assetMutex.withLock {
+                val previous = bookDao.getById(bookId)?.coverImagePath
+                bookDao.updateMetadata(bookId, title, author, description, coverImagePath, tags)
+                if (previous != coverImagePath) deleteUnreferencedCover(previous)
+            }
         }
     }
 
@@ -218,26 +223,32 @@ class BookRepositoryImpl(
 
     override suspend fun deleteBook(bookId: Long) {
         withContext(dispatchers.io) {
-            val book = bookDao.getById(bookId) ?: return@withContext
-            if (cachedContent?.key?.uri == book.uri) cachedContent = null
-            bookDao.deleteById(bookId)
-            val remaining = bookDao.getByUri(book.uri)
-            val owned = storageDir?.canonicalFile
-            if (remaining == null && owned != null && Uri.parse(book.uri).scheme == "file") {
-                val file = Uri.parse(book.uri).path?.let { java.io.File(it).canonicalFile }
-                if (file?.parentFile == owned) file.delete()
-            }
-            val coverPath = book.coverImagePath
-            if (coverPath != null && storageDir?.parentFile != null) {
-                runCatching {
-                    val coversDir = java.io.File(storageDir.parentFile, "covers").canonicalFile
-                    val coverFile = java.io.File(coverPath).canonicalFile
-                    if (coverFile.isFile && coverFile.parentFile == coversDir) {
-                        coverFile.delete()
-                    }
+            assetMutex.withLock {
+                val book = bookDao.getById(bookId) ?: return@withLock
+                if (cachedContent?.key?.uri == book.uri) cachedContent = null
+                bookDao.deleteById(bookId)
+                val remaining = bookDao.getByUri(book.uri)
+                val owned = storageDir?.canonicalFile
+                if (remaining == null && owned != null && Uri.parse(book.uri).scheme == "file") {
+                    val file = Uri.parse(book.uri).path?.let { java.io.File(it).canonicalFile }
+                    if (file?.parentFile == owned) file.delete()
                 }
+                deleteUnreferencedCover(book.coverImagePath)
             }
         }
+    }
+
+    private suspend fun deleteUnreferencedCover(path: String?) {
+        if (path == null) return
+        val parent = storageDir?.parentFile ?: return
+        // Cleanup is best effort after the metadata transaction has succeeded.
+        try {
+            if (bookDao.countByCoverPath(path) > 0) return
+            val directory = java.io.File(parent, "covers").canonicalFile
+            val cover = java.io.File(path).canonicalFile
+            if (cover.isFile && cover.parentFile == directory) cover.delete()
+        } catch (error: CancellationException) { throw error }
+        catch (_: Exception) { /* Retain the old file if reference checks are unavailable. */ }
     }
 
     private fun saveCoverImage(bytes: ByteArray?): String? {

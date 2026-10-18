@@ -31,26 +31,23 @@ class BackupManager @Inject constructor(
     suspend fun export(target: Uri): Result<Unit> = withContext(dispatchers.io) {
         runCatching {
             val snapshotFile = File.createTempFile("library-backup-", ".db", context.cacheDir)
+            val archiveFile = File(snapshotFile.path + ".zip")
             try {
                 database.snapshot(snapshotFile)
-                val output = context.contentResolver.openOutputStream(target)
-                    ?: error("Cannot open output stream")
-                ZipOutputStream(output.buffered()).use { zip ->
+                // Validate and package every source before replacing a user-selected backup file.
+                ZipOutputStream(archiveFile.outputStream().buffered()).use { zip ->
                     SQLiteDatabase.openDatabase(snapshotFile.path, null, SQLiteDatabase.OPEN_READWRITE).use { snapshot ->
                         snapshot.rawQuery("SELECT id, uri, format, cover_image_path FROM books", null).use { cursor ->
                             while (cursor.moveToNext()) {
                                 val id = cursor.getLong(0)
                                 val entry = "books/$id.${cursor.getString(2).lowercase().filter { it in 'a'..'z' }}"
                                 val uri = Uri.parse(cursor.getString(1))
-                                val stream = runCatching { context.contentResolver.openInputStream(uri) }.getOrNull()
-                                if (stream != null) {
-                                    zip.putNextEntry(ZipEntry(entry))
-                                    stream.use { it.copyTo(zip) }
-                                    zip.closeEntry()
-                                    snapshot.execSQL("UPDATE books SET uri=? WHERE id=?", arrayOf<Any?>("bookmt-backup://$entry", id))
-                                } else {
-                                    android.util.Log.w("BackupManager", "Cannot back up book #$id: source is unavailable, keeping original record")
-                                }
+                                val stream = context.contentResolver.openInputStream(uri)
+                                    ?: error("Cannot back up book #$id: source is unavailable")
+                                zip.putNextEntry(ZipEntry(entry))
+                                stream.use { it.copyTo(zip) }
+                                zip.closeEntry()
+                                snapshot.execSQL("UPDATE books SET uri=? WHERE id=?", arrayOf<Any?>("bookmt-backup://$entry", id))
                                 if (!cursor.isNull(3)) {
                                     val cover = File(cursor.getString(3))
                                     if (cover.isFile) {
@@ -67,7 +64,10 @@ class BackupManager @Inject constructor(
                     File(context.filesDir, "fonts").listFiles()?.filter { it.isFile && assetEntry("fonts/${it.name}") }
                         ?.forEach { zip.putFile("fonts/${it.name}", it) }
                 }
-            } finally { snapshotFile.delete() }
+                val output = context.contentResolver.openOutputStream(target)
+                    ?: error("Cannot open output stream")
+                output.use { destination -> archiveFile.inputStream().use { it.copyTo(destination) } }
+            } finally { snapshotFile.delete(); archiveFile.delete() }
             Unit
         }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
@@ -186,47 +186,52 @@ class BackupManager @Inject constructor(
                 Regex("covers/[0-9]+\\.img").matches(name) ||
                 Regex("fonts/[a-zA-Z0-9-]+\\.(ttf|otf)").matches(name)
 
-        /** Runs before DI, Room and DataStore start. Staged sources remain until all writes succeed. */
+        /** Recover interrupted installs before Room or DataStore can open any live file. */
         fun applyPendingRestore(context: Context) {
             val pending = File(context.filesDir, PENDING_DIR)
-            if (!pending.isDirectory) return
-            try {
-                val assets = pending.walkTopDown().filter { it.isFile }
-                    .map { it.relativeTo(pending).invariantSeparatorsPath }.filter(::assetEntry).toList()
-                // Install referenced assets before replacing the database that points to them.
-                for (entry in assets + allowedEntries) {
-                    val source = File(pending, entry)
-                    if (!source.isFile) continue
-                    val target = if (entry == DB_ENTRY) context.getDatabasePath(Constants.DATABASE_NAME)
-                        else File(context.filesDir, entry)
-                    target.parentFile?.mkdirs()
-                    if (entry == DB_ENTRY) {
-                        File(target.path + "-wal").delete()
-                        File(target.path + "-shm").delete()
-                    }
-                    val atomic = android.util.AtomicFile(target)
-                    val output = atomic.startWrite()
-                    try {
-                        source.inputStream().use { it.copyTo(output) }
-                        atomic.finishWrite(output)
-                    } catch (e: Exception) {
-                        atomic.failWrite(output)
-                        throw e
-                    }
-                    if (entry == DB_ENTRY) {
-                        File(target.path + "-wal").delete()
-                        File(target.path + "-shm").delete()
+            val transaction = RestoreTransaction(File(context.filesDir, "restore-transaction")) { entry ->
+                when (entry) {
+                    DB_ENTRY -> context.getDatabasePath(Constants.DATABASE_NAME)
+                    "$DB_ENTRY-wal" -> File(context.getDatabasePath(Constants.DATABASE_NAME).path + "-wal")
+                    "$DB_ENTRY-shm" -> File(context.getDatabasePath(Constants.DATABASE_NAME).path + "-shm")
+                    "$DB_ENTRY-journal" -> File(context.getDatabasePath(Constants.DATABASE_NAME).path + "-journal")
+                    else -> {
+                        require(entry in allowedEntries || assetEntry(entry)) { "Invalid restore journal entry" }
+                        File(context.filesDir, entry)
                     }
                 }
-                // Clean up orphaned book and cover files not present in the restored backup
-                val assetNames = assets.toSet()
-                File(context.filesDir, "books").listFiles()?.forEach { if ("books/${it.name}" !in assetNames) it.delete() }
-                File(context.filesDir, "covers").listFiles()?.forEach { if ("covers/${it.name}" !in assetNames) it.delete() }
-            } catch (e: Exception) {
-                android.util.Log.e("BackupManager", "Failed to apply restore, aborting to prevent boot loop", e)
-            } finally {
-                pending.deleteRecursively()
             }
+            // Failure to recover is fatal: opening a partially restored database is unsafe.
+            val alreadyCommitted = transaction.recover()
+            if (!alreadyCommitted && !pending.isDirectory) return
+            if (!alreadyCommitted) {
+                val assets = pending.walkTopDown().filter { it.isFile }
+                    .map { it.relativeTo(pending).invariantSeparatorsPath }.filter(::assetEntry).toList()
+                val replacements = linkedMapOf<String, File?>()
+                for (entry in assets + allowedEntries) {
+                    val source = File(pending, entry)
+                    if (source.isFile) replacements[entry] = source
+                }
+                if (DB_ENTRY in replacements) {
+                    // Preserve sidecars in the rollback journal instead of deleting committed WAL data.
+                    replacements["$DB_ENTRY-wal"] = null
+                    replacements["$DB_ENTRY-shm"] = null
+                    replacements["$DB_ENTRY-journal"] = null
+                }
+                try {
+                    transaction.install(replacements)
+                } catch (error: Exception) {
+                    transaction.recover() // Do not continue startup if rollback could not finish.
+                    android.util.Log.e("BackupManager", "Restore rolled back; staged backup retained for retry", error)
+                    android.widget.Toast.makeText(context, com.TopMob.bookmt.R.string.backup_restore_rolled_back,
+                        android.widget.Toast.LENGTH_LONG).show()
+                    return
+                }
+            }
+            // Older backups can contain only settings or external book URIs. Never infer orphaned
+            // books from missing ZIP entries; their current files may still be referenced by the DB.
+            com.TopMob.bookmt.data.settings.AppSettingsDataStore.invalidateLanguageCache(context)
+            if (pending.deleteRecursively()) transaction.finish()
         }
     }
 }

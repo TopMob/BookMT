@@ -71,6 +71,40 @@ class BackupRestoreTest {
         assertFalse(File(root, "pending-restore").exists())
     }
 
+    @Test fun settingsOnlyRestorePreservesOwnedBooksAndCovers() = runBlocking {
+        val book = File(root, "books/existing.txt").apply { parentFile!!.mkdirs(); writeText("owned book") }
+        val cover = File(root, "covers/existing.img").apply { parentFile!!.mkdirs(); writeText("owned cover") }
+        assertTrue(manager.import(backup(entry, "restored preferences")).isSuccess)
+        BackupManager.applyPendingRestore(context)
+        assertEquals("owned book", book.readText())
+        assertEquals("owned cover", cover.readText())
+        assertFalse(File(root, "pending-restore").exists())
+    }
+
+    @Test fun unavailableBookMakesExportFailInsteadOfReportingPortableSuccess() = runBlocking {
+        database.bookDao().insert(com.TopMob.bookmt.domain.model.Book(
+            uri = Uri.fromFile(File(root, "missing.txt")).toString(), title = "Missing book",
+            format = com.TopMob.bookmt.domain.model.BookFormat.TXT).toEntity())
+        val existingBackup = File(root, "incomplete.zip").apply { writeText("previous backup") }
+        assertTrue(manager.export(Uri.fromFile(existingBackup)).isFailure)
+        assertEquals("previous backup", existingBackup.readText())
+    }
+
+    @Test fun failedStartupInstallRetainsBackupAndCanBeRetried() = runBlocking {
+        val obstruction = File(root, "datastore").apply { writeText("keep this file") }
+        val book = File(root, "books/existing.txt").apply { parentFile!!.mkdirs(); writeText("owned book") }
+        assertTrue(manager.import(backup(entry, "restored preferences")).isSuccess)
+        InstrumentationRegistry.getInstrumentation().runOnMainSync { BackupManager.applyPendingRestore(context) }
+        assertEquals("keep this file", obstruction.readText())
+        assertTrue(File(root, "pending-restore").isDirectory)
+        assertEquals("owned book", book.readText())
+        assertTrue(obstruction.delete())
+        InstrumentationRegistry.getInstrumentation().runOnMainSync { BackupManager.applyPendingRestore(context) }
+        assertEquals("restored preferences", File(root, entry).readText())
+        assertFalse(File(root, "pending-restore").exists())
+        assertEquals("owned book", book.readText())
+    }
+
     @Test fun rejectsCorruptDatabaseBeforeStagingRestore() = runBlocking {
         assertTrue(manager.import(backup(BackupManager.DB_ENTRY, "not sqlite")).isFailure)
         assertFalse(File(root, "pending-restore").exists())

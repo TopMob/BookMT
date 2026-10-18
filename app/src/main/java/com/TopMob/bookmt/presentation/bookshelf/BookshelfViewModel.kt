@@ -10,14 +10,13 @@ import com.TopMob.bookmt.domain.repository.BookRepository
 import com.TopMob.bookmt.domain.usecase.GetBooksUseCase
 import com.TopMob.bookmt.domain.usecase.ImportBookUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -28,7 +27,6 @@ import javax.inject.Inject
  * [uiState] derived reactively from the book repository — re-querying automatically whenever either
  * the data or the query changes. Heavy filtering/sorting happens in [GetBooksUseCase] off the UI.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class BookshelfViewModel @Inject constructor(
     private val getBooks: GetBooksUseCase,
@@ -36,33 +34,29 @@ class BookshelfViewModel @Inject constructor(
     private val bookRepository: BookRepository,
     private val libraryPreferences: com.TopMob.bookmt.data.settings.LibraryPreferences,
     private val documentImport: com.TopMob.bookmt.data.importing.DocumentImport,
+    private val dispatchers: com.TopMob.bookmt.core.common.DispatcherProvider,
 ) : ViewModel() {
 
     private val query = MutableStateFlow(libraryPreferences.query())
     private val viewMode = MutableStateFlow(libraryPreferences.viewMode())
     private val transientError = MutableStateFlow<String?>(null)
 
-    private val booksFlow = query
-        .flatMapLatest { q -> getBooks(q) }
-
-    val uiState: StateFlow<BookshelfUiState> = combine(
-        booksFlow,
-        query,
-        viewMode,
-        transientError,
-        bookRepository.observeBooks(),
-    ) { books, q, mode, error, allBooks ->
+    // One Room observer serves both filtered results and library-wide metadata. Query changes
+    // recompute this projection off the UI thread without starting another database observation.
+    private val library = combine(bookRepository.observeBooks(), query) { allBooks, q ->
         BookshelfUiState(
-            books = books,
+            books = getBooks.filter(allBooks, q),
             allBooks = allBooks,
-            continueReadingBook = allBooks.filter { it.hasBeenOpened && it.progress < 1f }
+            continueReadingBook = allBooks.asSequence().filter { it.hasBeenOpened && !it.isFinished }
                 .maxByOrNull { it.lastReadTimestamp },
             query = q,
-            viewMode = mode,
             availableTags = allBooks.flatMap { it.tags }.distinct().sorted(),
             isLoading = false,
-            errorMessage = error,
         )
+    }.flowOn(dispatchers.default)
+
+    val uiState: StateFlow<BookshelfUiState> = combine(library, viewMode, transientError) { library, mode, error ->
+        library.copy(viewMode = mode, errorMessage = error)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),

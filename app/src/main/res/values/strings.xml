@@ -139,4 +139,5 @@
     <string name="reader_open_error">Could not open book content</string>
     <string name="voice_female">Female · F1</string>
     <string name="voice_male">Male · M1</string>
+    <string name="backup_restore_rolled_back">Restore failed. Your previous library was restored; the backup is retained for retry.</string>
 </resources>

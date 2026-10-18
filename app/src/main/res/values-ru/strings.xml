@@ -139,4 +139,5 @@
     <string name="reader_open_error">Не удалось открыть содержимое книги</string>
     <string name="voice_female">Женский · F1</string>
     <string name="voice_male">Мужской · M1</string>
+    <string name="backup_restore_rolled_back">Не удалось применить резервную копию. Прежняя библиотека сохранена; копия оставлена для повторной попытки.</string>
 </resources>

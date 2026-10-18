@@ -55,6 +55,19 @@ class ReaderViewModelTest {
         coVerify { repository.saveReadingPosition(1, 2345f / 5000, 2345, any(), 1) }
     }
 
+    @Test fun `cached content waits for actual reader settings before publishing`() = runTest(dispatcher) {
+        val preferences = kotlinx.coroutines.flow.MutableSharedFlow<ReaderSettings>()
+        every { settings.settings } returns preferences
+        val vm = reader()
+        runCurrent()
+        assertTrue(vm.uiState.value.isLoading)
+        assertNull(vm.uiState.value.content)
+        preferences.emit(ReaderSettings(fontSizeSp = 24f))
+        runCurrent()
+        assertEquals(24f, vm.uiState.value.settings.fontSizeSp)
+        assertEquals(content, vm.uiState.value.content)
+    }
+
     @Test fun `pausing flushes the latest position before debounce expires`() = runTest(dispatcher) {
         val vm = reader()
         runCurrent()
@@ -66,6 +79,64 @@ class ReaderViewModelTest {
         advanceTimeBy(1000)
         runCurrent()
         coVerify(exactly = 1) { repository.saveReadingPosition(1, 0.6f, 3000, any(), 1) }
+    }
+
+    @Test fun `continuous scrolling checkpoints without waiting for scrolling to stop`() = runTest(dispatcher) {
+        val vm = reader()
+        runCurrent()
+        repeat(20) { index ->
+            vm.onScrollOffsetChanged(2500 + index * 50)
+            advanceTimeBy(100)
+            runCurrent()
+        }
+        coVerify(atLeast = 4) { repository.saveReadingPosition(1, any(), more(2345), any(), 1) }
+        vm.onReadingPaused()
+        runCurrent()
+        coVerify { repository.saveReadingPosition(1, 3450f / 5000, 3450, any(), 1) }
+    }
+
+    @Test fun `slow checkpoints cannot overwrite a newer position after exit`() = runTest(dispatcher) {
+        val writes = mutableListOf<Int>()
+        coEvery { repository.saveReadingPosition(any(), any(), any(), any(), any()) } coAnswers {
+            val position = thirdArg<Int>()
+            if (position == 3000) kotlinx.coroutines.delay(1000)
+            writes += position
+        }
+        val vm = reader()
+        runCurrent()
+        vm.onScrollOffsetChanged(3000)
+        advanceTimeBy(251)
+        runCurrent()
+        vm.onScrollOffsetChanged(4000)
+        vm.onReadingPaused()
+        advanceTimeBy(1500)
+        runCurrent()
+        assertEquals(4000, writes.last())
+        assertTrue(writes.indexOf(3000) < writes.indexOf(4000))
+    }
+
+    @Test fun `immediate reopening waits for the previous readers exit checkpoint`() = runTest(dispatcher) {
+        var stored = 2345
+        coEvery { repository.getBook(1) } answers {
+            Book(id = 1, uri = "file:///book.txt", title = "Book", format = BookFormat.TXT, lastReadPosition = stored)
+        }
+        coEvery { repository.saveReadingPosition(any(), any(), any(), any(), any()) } coAnswers {
+            val position = thirdArg<Int>()
+            kotlinx.coroutines.delay(500)
+            stored = position
+        }
+        val first = reader()
+        advanceTimeBy(501)
+        runCurrent()
+        first.onScrollOffsetChanged(4000)
+        first.onReadingPaused()
+        val reopened = reader()
+        runCurrent()
+        assertTrue(reopened.uiState.value.isLoading)
+        advanceTimeBy(1001)
+        runCurrent()
+        assertEquals(4000, reopened.uiState.value.currentOffset)
+        assertEquals(4000, stored)
     }
 
     @Test fun `bookmark jumps request navigation even at the same offset`() = runTest(dispatcher) {
@@ -89,6 +160,18 @@ class ReaderViewModelTest {
         val store = ViewModelStore()
         store.put("reader", vm)
         store.clear()
+        runCurrent()
+        coVerify { repository.saveReadingPosition(1, 0.8f, 4000, any(), 1) }
+    }
+
+    @Test fun `final viewport delivered after clearing still reaches storage`() = runTest(dispatcher) {
+        val vm = reader()
+        runCurrent()
+        vm.onScrollOffsetChanged(3000)
+        val store = ViewModelStore()
+        store.put("reader", vm)
+        store.clear()
+        vm.onScrollOffsetChanged(4000)
         runCurrent()
         coVerify { repository.saveReadingPosition(1, 0.8f, 4000, any(), 1) }
     }
@@ -127,5 +210,33 @@ class ReaderViewModelTest {
         runCurrent()
         coVerify { tts.start(content, 3500, 220, 550) }
         assertEquals(2345, vm.uiState.value.currentOffset)
+    }
+
+    @Test fun `search read failure is reported and another search can recover`() = runTest(dispatcher) {
+        var broken = false
+        val chapters = object : AbstractList<Chapter>(), ChapterCollection {
+            override val size = 1
+            override fun descriptor(index: Int) = content.chapters[0].descriptor()
+            override fun get(index: Int): Chapter {
+                if (broken) throw java.io.IOException("Damaged reading cache")
+                return content.chapters[0]
+            }
+        }
+        coEvery { repository.loadContent(any()) } returns Resource.Success(content.copy(chapters = chapters))
+        val vm = reader()
+        runCurrent()
+        broken = true
+        vm.onSearchChange("x")
+        advanceTimeBy(300)
+        runCurrent()
+        assertFalse(vm.uiState.value.searchBusy)
+        assertEquals("Damaged reading cache", vm.uiState.value.errorMessage)
+        assertTrue(vm.uiState.value.searchResults.isEmpty())
+        broken = false
+        vm.onSearchChange("xxx")
+        advanceTimeBy(300)
+        runCurrent()
+        assertFalse(vm.uiState.value.searchBusy)
+        assertTrue(vm.uiState.value.searchResults.isNotEmpty())
     }
 }

@@ -29,23 +29,16 @@ class OnnxTtsEngine(private val context: Context, private val dispatchers: Dispa
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val attributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
-    private var resumeOnFocusGain = false
+    private val focusPolicy = SpeechFocusPolicy()
     private val focusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                if (state.value.status == TtsStatus.PLAYING) {
-                    resumeOnFocusGain = true
-                    pause()
-                }
+                if (focusPolicy.transientLoss(state.value.status)) pausePlayback()
             }
             AudioManager.AUDIOFOCUS_GAIN -> {
-                if (resumeOnFocusGain) {
-                    resumeOnFocusGain = false
-                    resume()
-                }
+                if (focusPolicy.gain()) resume()
             }
             AudioManager.AUDIOFOCUS_LOSS -> {
-                resumeOnFocusGain = false
                 pause()
             }
         }
@@ -64,6 +57,7 @@ class OnnxTtsEngine(private val context: Context, private val dispatchers: Dispa
             runtimeGeneration++
             stopped = false
             paused = false
+            focusPolicy.cancelResume()
             this@OnnxTtsEngine.assignment = assignment
             mutableState.value = TtsPlaybackState(status = TtsStatus.PREPARING, activeVoiceId = assignment.narrator.id,
                 bookId = bookId, sessionId = runtimeGeneration)
@@ -94,8 +88,7 @@ class OnnxTtsEngine(private val context: Context, private val dispatchers: Dispa
                 receiverRegistered = true
                 val tts = checkNotNull(runtime) { "Голоса ещё не подготовлены" }
                 val voices = checkNotNull(assignment)
-                // Synthesize one passage ahead while AudioTrack plays the current one.
-                // A rendezvous buffer bounds memory and keeps all native calls on one producer.
+                // Bound prefetched passages and keep all native calls on one producer.
                 segments.filter { it.text.any(Char::isLetterOrDigit) }.map { segment ->
                     awaitUnpaused()
                     val voice = voices.voiceFor(segment.role)
@@ -193,12 +186,17 @@ class OnnxTtsEngine(private val context: Context, private val dispatchers: Dispa
         while (paused) { delay(50); ensureRunning() }
     }
     override fun pause() {
+        focusPolicy.cancelResume()
+        pausePlayback()
+    }
+    private fun pausePlayback() {
         if (stopped || state.value.status !in setOf(TtsStatus.PLAYING, TtsStatus.PREPARING)) return
         paused = true
         synchronized(audioLock) { track?.pause() }
         mutableState.update { it.copy(status = TtsStatus.PAUSED) }
     }
     override fun resume() {
+        focusPolicy.cancelResume()
         if (stopped || !paused || !requestFocus()) return
         paused = false
         synchronized(audioLock) { track?.play() }
@@ -207,7 +205,7 @@ class OnnxTtsEngine(private val context: Context, private val dispatchers: Dispa
     override fun stop() {
         stopped = true
         paused = false
-        resumeOnFocusGain = false
+        focusPolicy.cancelResume()
         synchronized(audioLock) {
             try {
                 track?.pause()
