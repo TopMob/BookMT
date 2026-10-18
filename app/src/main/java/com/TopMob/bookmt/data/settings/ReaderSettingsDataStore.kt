@@ -2,22 +2,14 @@ package com.TopMob.bookmt.data.settings
 
 import android.content.Context
 import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.MutablePreferences
+import androidx.datastore.core.DataMigration
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.emptyPreferences
-import androidx.datastore.preferences.core.floatPreferencesKey
-import androidx.datastore.preferences.core.intPreferencesKey
-import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.TopMob.bookmt.core.common.Constants
-import com.TopMob.bookmt.domain.model.ReaderOrientation
-import com.TopMob.bookmt.domain.model.ReaderFontFamily
 import com.TopMob.bookmt.domain.model.ReaderSettings
-import com.TopMob.bookmt.domain.model.ReaderTextAlignment
-import com.TopMob.bookmt.domain.model.ReaderTheme
-import com.TopMob.bookmt.domain.model.ReadingMode
+import com.TopMob.bookmt.data.settings.ReaderSettingsCodec.toReaderSettings
+import com.TopMob.bookmt.data.settings.ReaderSettingsCodec.writeReaderSettings
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
@@ -26,6 +18,18 @@ import java.io.IOException
 /** Top-level DataStore delegate (one instance per process, keyed by name). */
 private val Context.readerDataStore: DataStore<Preferences> by preferencesDataStore(
     name = Constants.SETTINGS_DATASTORE_NAME,
+    produceMigrations = { context ->
+        listOf(object : DataMigration<Preferences> {
+            override suspend fun shouldMigrate(currentData: Preferences) = ReaderSettingsCodec.needsMigration(currentData)
+            override suspend fun migrate(currentData: Preferences): Preferences {
+                // An existing installation may never have changed a reader setting at all.
+                @Suppress("DEPRECATION")
+                val info = context.packageManager.getPackageInfo(context.packageName, 0)
+                return ReaderSettingsCodec.migrate(currentData, info.lastUpdateTime > info.firstInstallTime)
+            }
+            override suspend fun cleanUp() = Unit
+        })
+    },
 )
 
 /**
@@ -36,11 +40,11 @@ private val Context.readerDataStore: DataStore<Preferences> by preferencesDataSt
 class ReaderSettingsDataStore(private val context: Context) {
 
     val settings: Flow<ReaderSettings> = context.readerDataStore.data
+        .map { prefs -> prefs.toReaderSettings().also { AppearanceLaunchCache.write(context, it.appearance) } }
         .catch { e ->
-            // DataStore surfaces read failures as IOException; recover with defaults.
-            if (e is IOException) emit(emptyPreferences()) else throw e
+            // Do not cache a fallback as if it were a successfully persisted choice.
+            if (e is IOException) emit(ReaderSettings()) else throw e
         }
-        .map { prefs -> prefs.toReaderSettings() }
 
     suspend fun update(transform: (ReaderSettings) -> ReaderSettings) {
         context.readerDataStore.edit { prefs ->
@@ -49,88 +53,4 @@ class ReaderSettingsDataStore(private val context: Context) {
         }
     }
 
-    private fun Preferences.toReaderSettings(): ReaderSettings {
-        val defaults = ReaderSettings()
-        return ReaderSettings(
-            theme = decodeEnum(this[Keys.THEME], ReaderTheme.entries, defaults.theme),
-            fontSizeSp = this[Keys.FONT_SIZE] ?: defaults.fontSizeSp,
-            fontFamily = decodeEnum(this[Keys.FONT_FAMILY], ReaderFontFamily.entries, defaults.fontFamily),
-            lineSpacingMultiplier = this[Keys.LINE_SPACING] ?: defaults.lineSpacingMultiplier,
-            horizontalMarginDp = this[Keys.MARGIN_H] ?: defaults.horizontalMarginDp,
-            verticalMarginDp = this[Keys.MARGIN_V] ?: defaults.verticalMarginDp,
-            textAlignment = decodeEnum(this[Keys.ALIGNMENT], ReaderTextAlignment.entries, defaults.textAlignment),
-            readingMode = decodeEnum(this[Keys.READING_MODE], ReadingMode.entries, defaults.readingMode),
-            brightnessOverrideEnabled = this[Keys.BRIGHTNESS_OVERRIDE] ?: defaults.brightnessOverrideEnabled,
-            brightnessLevel = this[Keys.BRIGHTNESS_LEVEL] ?: defaults.brightnessLevel,
-            keepScreenOn = this[Keys.KEEP_SCREEN_ON] ?: defaults.keepScreenOn,
-            showProgressSlider = this[Keys.SHOW_SLIDER] ?: defaults.showProgressSlider,
-            customFontPath = this[Keys.CUSTOM_FONT_PATH] ?: defaults.customFontPath,
-            fullScreen = this[Keys.FULL_SCREEN] ?: defaults.fullScreen,
-            volumeKeysEnabled = this[Keys.VOLUME_KEYS] ?: defaults.volumeKeysEnabled,
-            orientation = decodeEnum(this[Keys.ORIENTATION], ReaderOrientation.entries, defaults.orientation),
-            autoPageSeconds = this[Keys.AUTO_PAGE_SECONDS] ?: defaults.autoPageSeconds,
-            ttsMaleVoice = this[Keys.TTS_MALE] ?: defaults.ttsMaleVoice,
-            ttsSpeed = this[Keys.TTS_SPEED] ?: defaults.ttsSpeed,
-            ttsLicenseAccepted = this[Keys.TTS_LICENSE] ?: defaults.ttsLicenseAccepted,
-            bookFormatting = this[Keys.BOOK_FORMATTING] ?: defaults.bookFormatting,
-            ttsSentencePauseMs = this[Keys.TTS_SENTENCE_PAUSE] ?: defaults.ttsSentencePauseMs,
-            ttsParagraphPauseMs = this[Keys.TTS_PARAGRAPH_PAUSE] ?: defaults.ttsParagraphPauseMs,
-        ).sanitized()
-    }
-
-    private fun MutablePreferences.writeReaderSettings(s: ReaderSettings) {
-        this[Keys.THEME] = s.theme.name
-        this[Keys.FONT_SIZE] = s.fontSizeSp
-        this[Keys.FONT_FAMILY] = s.fontFamily.name
-        this[Keys.LINE_SPACING] = s.lineSpacingMultiplier
-        this[Keys.MARGIN_H] = s.horizontalMarginDp
-        this[Keys.MARGIN_V] = s.verticalMarginDp
-        this[Keys.ALIGNMENT] = s.textAlignment.name
-        this[Keys.READING_MODE] = s.readingMode.name
-        this[Keys.BRIGHTNESS_OVERRIDE] = s.brightnessOverrideEnabled
-        this[Keys.BRIGHTNESS_LEVEL] = s.brightnessLevel
-        this[Keys.KEEP_SCREEN_ON] = s.keepScreenOn
-        this[Keys.SHOW_SLIDER] = s.showProgressSlider
-        this[Keys.FULL_SCREEN] = s.fullScreen
-        this[Keys.VOLUME_KEYS] = s.volumeKeysEnabled
-        this[Keys.ORIENTATION] = s.orientation.name
-        this[Keys.AUTO_PAGE_SECONDS] = s.autoPageSeconds
-        this[Keys.TTS_MALE] = s.ttsMaleVoice
-        this[Keys.TTS_SPEED] = s.ttsSpeed
-        this[Keys.TTS_LICENSE] = s.ttsLicenseAccepted
-        this[Keys.BOOK_FORMATTING] = s.bookFormatting
-        this[Keys.TTS_SENTENCE_PAUSE] = s.ttsSentencePauseMs
-        this[Keys.TTS_PARAGRAPH_PAUSE] = s.ttsParagraphPauseMs
-        val fontPath = s.customFontPath
-        if (fontPath == null) this.remove(Keys.CUSTOM_FONT_PATH) else this[Keys.CUSTOM_FONT_PATH] = fontPath
-    }
-
-    private fun <T : Enum<T>> decodeEnum(name: String?, values: List<T>, default: T): T =
-        values.firstOrNull { it.name == name } ?: default
-
-    private object Keys {
-        val BOOK_FORMATTING = booleanPreferencesKey("book_formatting")
-        val TTS_SENTENCE_PAUSE = intPreferencesKey("tts_sentence_pause_ms")
-        val TTS_PARAGRAPH_PAUSE = intPreferencesKey("tts_paragraph_pause_ms")
-        val TTS_MALE = booleanPreferencesKey("tts_male")
-        val TTS_SPEED = floatPreferencesKey("tts_speed")
-        val TTS_LICENSE = booleanPreferencesKey("supertonic_3_license_accepted")
-        val FULL_SCREEN = booleanPreferencesKey("full_screen")
-        val VOLUME_KEYS = booleanPreferencesKey("volume_keys")
-        val ORIENTATION = stringPreferencesKey("orientation")
-        val AUTO_PAGE_SECONDS = intPreferencesKey("auto_page_seconds")
-        val THEME = stringPreferencesKey("theme")
-        val FONT_SIZE = floatPreferencesKey("font_size_sp")
-        val FONT_FAMILY = stringPreferencesKey("font_family")
-        val LINE_SPACING = floatPreferencesKey("line_spacing")
-        val MARGIN_H = intPreferencesKey("margin_h")
-        val MARGIN_V = intPreferencesKey("margin_v")
-        val ALIGNMENT = stringPreferencesKey("alignment")
-        val READING_MODE = stringPreferencesKey("reading_mode")
-        val BRIGHTNESS_OVERRIDE = booleanPreferencesKey("brightness_override")
-        val BRIGHTNESS_LEVEL = floatPreferencesKey("brightness_level")
-        val KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
-        val SHOW_SLIDER = booleanPreferencesKey("show_slider")
-        val CUSTOM_FONT_PATH = stringPreferencesKey("custom_font_path")
-    }
 }

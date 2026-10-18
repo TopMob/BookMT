@@ -260,12 +260,13 @@ fun BookshelfScreen(
             LibraryFilterSummary(state, importProgress, viewModel::onResetFilters)
             Box(Modifier.weight(1f)) {
             when {
-                state.isLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                state.isEmpty -> Text(
-                    text = stringResource(R.string.bookshelf_empty),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.align(Alignment.Center).padding(32.dp),
+                state.isLoading -> com.TopMob.bookmt.presentation.components.ComfortLoadingIndicator(Modifier.align(Alignment.Center))
+                state.isEmpty -> com.TopMob.bookmt.presentation.components.ComfortEmptyState(
+                    title = stringResource(if (state.allBooks.isEmpty()) R.string.comfort_library_title else R.string.comfort_no_matches),
+                    message = stringResource(if (state.allBooks.isEmpty()) R.string.comfort_library_hint else R.string.comfort_no_matches_hint),
+                    modifier = Modifier.align(Alignment.Center),
+                    actionLabel = stringResource(if (state.allBooks.isEmpty()) R.string.bookshelf_import else R.string.library_reset_filters),
+                    onAction = { if (state.allBooks.isEmpty()) importLauncher.launch(IMPORT_MIME_TYPES) else viewModel.onResetFilters() },
                 )
 
                 state.viewMode == BookshelfViewMode.GRID -> LazyVerticalGrid(

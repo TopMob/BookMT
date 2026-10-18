@@ -63,6 +63,15 @@ class BackupRestoreTest {
         assertFalse(File(root, "pending-restore").exists())
     }
 
+    @Test fun restoreInvalidatesDerivedAppearanceBeforeNextLaunch() = runBlocking {
+        com.TopMob.bookmt.data.settings.AppearanceLaunchCache.write(context,
+            com.TopMob.bookmt.domain.model.AppearanceSettings(appTheme = com.TopMob.bookmt.domain.model.AppThemeMode.BLACK))
+        assertTrue(manager.import(backup(entry, "restored")).isSuccess)
+        BackupManager.applyPendingRestore(context)
+        // The launch cache is derived data; stale pre-restore colors must not win over restored preferences.
+        assertFalse(context.getSharedPreferences("appearance_launch_cache", Context.MODE_PRIVATE).contains("app"))
+    }
+
     @Test fun rejectsTraversalWithoutReplacingExistingData() = runBlocking {
         val prefs = File(root, entry).apply { parentFile!!.mkdirs(); writeText("old") }
         assertTrue(manager.import(backup("datastore/../escaped", "bad")).isFailure)

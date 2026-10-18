@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="appearance_title">Appearance</string>
+    <string name="appearance_app_theme">App theme</string>
+    <string name="appearance_system">Follow system</string>
+    <string name="appearance_same_as_app">Same as app</string>
+    <string name="appearance_motion">Animations</string>
+    <string name="appearance_motion_system">Follow system</string>
+    <string name="appearance_motion_minimal">Minimal motion</string>
+    <string name="appearance_motion_off">No animations</string>
+    <string name="appearance_motion_hint">Gentle transitions. Turning off animations in Android also turns them off here.</string>
+    <string name="comfort_loading">Loading…</string>
+    <string name="comfort_library_title">Your library</string>
+    <string name="comfort_library_hint">Add a book from your device to start reading.</string>
+    <string name="comfort_no_matches">No books match these filters</string>
+    <string name="comfort_no_matches_hint">Try changing the search or clearing filters.</string>
+    <string name="comfort_details">Details</string>
+</resources>

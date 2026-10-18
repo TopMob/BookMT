@@ -62,6 +62,10 @@ primary=secondary=tertiary=accent
 onPrimary=onSecondary=onTertiary=onAccent
 primaryContainer=secondaryContainer=tertiaryContainer=accentContainer
 onPrimaryContainer=onSecondaryContainer=onTertiaryContainer=onAccentContainer
+primaryFixed=secondaryFixed=tertiaryFixed=accentContainer
+primaryFixedDim=secondaryFixedDim=tertiaryFixedDim=accentContainer
+onPrimaryFixed=onSecondaryFixed=onTertiaryFixed=onAccentContainer
+onPrimaryFixedVariant=onSecondaryFixedVariant=onTertiaryFixedVariant=onAccentContainer
 background=background; onBackground=text
 surface=surface; onSurface=text
 surfaceVariant=surfaceInset; onSurfaceVariant=secondaryText

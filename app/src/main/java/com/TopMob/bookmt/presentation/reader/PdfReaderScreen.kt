@@ -69,7 +69,7 @@ fun PdfReaderScreen(onBack: () -> Unit, model: PdfReaderViewModel = hiltViewMode
                     }
                 }.graphicsLayer { scaleX = scale; scaleY = scale; translationX = pan.x; translationY = pan.y })
             }
-            if (state.loading) CircularProgressIndicator()
+            if (state.loading) com.TopMob.bookmt.presentation.components.ComfortLoadingIndicator()
             state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(24.dp)) }
         }
     }

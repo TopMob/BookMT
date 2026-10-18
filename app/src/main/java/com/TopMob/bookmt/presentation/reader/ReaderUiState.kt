@@ -21,6 +21,7 @@ data class ReaderUiState(
     val totalPages: Int = 1,
     val paginationReady: Boolean = false,
     val settings: ReaderSettings = ReaderSettings(),
+    val settingsLoaded: Boolean = false,
     val bookmarks: List<Bookmark> = emptyList(),
     val showControls: Boolean = false,
     val overlay: ReaderOverlay = ReaderOverlay.NONE,

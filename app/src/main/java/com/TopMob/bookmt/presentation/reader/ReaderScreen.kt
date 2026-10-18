@@ -52,6 +52,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.TopMob.bookmt.domain.model.resolvedTheme
+import com.TopMob.bookmt.domain.model.withReaderTheme
 import com.TopMob.bookmt.domain.tts.TtsStatus
 import com.TopMob.bookmt.presentation.reader.components.NotesBookmarksPanel
 import com.TopMob.bookmt.presentation.reader.components.ReaderBottomBar
@@ -74,11 +76,24 @@ fun ReaderScreen(
     viewModel: ReaderViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    if (!state.settingsLoaded) {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+        return
+    }
+    val theme = state.settings.resolvedTheme(androidx.compose.foundation.isSystemInDarkTheme())
+    com.TopMob.bookmt.ui.theme.BookMTTheme(theme) {
+        ReaderScreenContent(onNavigateBack, viewModel, state, theme)
+    }
+}
+
+@Composable
+private fun ReaderScreenContent(onNavigateBack: () -> Unit, viewModel: ReaderViewModel,
+    state: ReaderUiState, theme: com.TopMob.bookmt.domain.model.ReaderTheme) {
     if (state.book?.format == com.TopMob.bookmt.domain.model.BookFormat.PDF) {
         PdfReaderScreen(onNavigateBack)
         return
     }
-    val colors = ReaderColors.forTheme(state.settings.theme)
+    val colors = ReaderColors.forTheme(theme)
 
     ReaderWindowPreferences(state.settings.fullScreen && !state.showControls && state.overlay == ReaderOverlay.NONE,
         state.settings.orientation)
@@ -261,12 +276,11 @@ fun ReaderScreen(
                     .putExtra(Intent.EXTRA_TEXT, text), null))
             },
             onToggleTheme = {
-                val nextTheme = when (state.settings.theme) {
-                    com.TopMob.bookmt.domain.model.ReaderTheme.DAY -> com.TopMob.bookmt.domain.model.ReaderTheme.NIGHT
-                    com.TopMob.bookmt.domain.model.ReaderTheme.NIGHT -> com.TopMob.bookmt.domain.model.ReaderTheme.AMOLED_BLACK
-                    else -> com.TopMob.bookmt.domain.model.ReaderTheme.DAY
+                val dark = theme == com.TopMob.bookmt.domain.model.ReaderTheme.NIGHT ||
+                    theme == com.TopMob.bookmt.domain.model.ReaderTheme.AMOLED_BLACK
+                viewModel.onUpdateSettings { settings ->
+                    settings.withReaderTheme(if (dark) settings.appearance.lastLightTheme else settings.appearance.lastDarkTheme)
                 }
-                viewModel.onUpdateSettings { it.copy(theme = nextTheme) }
             },
         )
 
@@ -312,7 +326,7 @@ fun ReaderScreen(
                     .padding(bottom = 12.dp),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
                 color = colors.background.copy(alpha = 0.94f),
-                tonalElevation = 6.dp,
+                tonalElevation = 0.dp,
                 shadowElevation = 8.dp,
                 border = androidx.compose.foundation.BorderStroke(1.dp, colors.secondaryText.copy(alpha = 0.25f))
             ) {
@@ -338,7 +352,7 @@ fun ReaderScreen(
                                 viewModel.onResumeTts()
                             }
                         },
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = if (state.tts.status == TtsStatus.PAUSED) Icons.Filled.PlayArrow else Icons.Filled.Pause,
@@ -348,7 +362,7 @@ fun ReaderScreen(
                     }
                     IconButton(
                         onClick = viewModel::onStopTts,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Stop,
@@ -440,16 +454,14 @@ private fun ReaderSurface(
     val textStyle = remember(state.settings, colors.text) { state.settings.toTextStyle(colors.text) }
     when {
         state.isLoading -> Box(Modifier.fillMaxSize()) {
-            CircularProgressIndicator(Modifier.align(Alignment.Center))
+            com.TopMob.bookmt.presentation.components.ComfortLoadingIndicator(Modifier.align(Alignment.Center))
         }
 
         content == null -> Box(Modifier.fillMaxSize()) {
-            Text(
-                text = state.errorMessage ?: "Unable to load book",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.align(Alignment.Center),
-            )
+            com.TopMob.bookmt.presentation.components.ComfortErrorState(
+                message = stringResource(R.string.reader_open_error),
+                actionLabel = stringResource(R.string.reader_rebuild_cache),
+                onAction = onRebuildCache, modifier = Modifier.align(Alignment.Center))
         }
 
         else -> ReaderContent(

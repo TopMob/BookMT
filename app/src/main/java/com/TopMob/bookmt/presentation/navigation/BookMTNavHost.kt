@@ -1,6 +1,11 @@
 package com.TopMob.bookmt.presentation.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
+import com.TopMob.bookmt.ui.theme.LocalComfortMotion
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -29,9 +34,29 @@ fun BookMTNavHost(
             onImportHandled()
         }
     }
+    val motion = LocalComfortMotion.current
+    val distance = with(LocalDensity.current) { 12.dp.roundToPx() }
     NavHost(
         navController = navController,
         startDestination = Screen.Bookshelf.route,
+        enterTransition = {
+            if (initialState.destination.route == Screen.Reader.route || targetState.destination.route == Screen.Reader.route)
+                EnterTransition.None
+            else fadeIn(tween(motion.duration(160))) + if (motion.spatial)
+                slideInHorizontally(tween(160)) { distance } else EnterTransition.None
+        },
+        exitTransition = {
+            if (initialState.destination.route == Screen.Reader.route || targetState.destination.route == Screen.Reader.route)
+                ExitTransition.None else fadeOut(tween(motion.duration(120)))
+        },
+        popEnterTransition = {
+            if (initialState.destination.route == Screen.Reader.route || targetState.destination.route == Screen.Reader.route)
+                EnterTransition.None else fadeIn(tween(motion.duration(120)))
+        },
+        popExitTransition = {
+            if (initialState.destination.route == Screen.Reader.route || targetState.destination.route == Screen.Reader.route)
+                ExitTransition.None else fadeOut(tween(motion.duration(100)))
+        },
     ) {
         composable(Screen.Bookshelf.route) {
             BookshelfScreen(

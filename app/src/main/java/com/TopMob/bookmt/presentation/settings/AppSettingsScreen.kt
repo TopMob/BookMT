@@ -140,6 +140,8 @@ fun AppSettingsScreen(
             val rs = state.readerSettings
             val onUpdate = viewModel::onUpdateReaderSettings
 
+            AppearancePreferences(rs, onUpdate)
+            HorizontalDivider()
             ReadingPreferences(rs, onUpdate)
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -288,13 +290,7 @@ fun ReadingPreferences(rs: ReaderSettings, onUpdate: ((ReaderSettings) -> Reader
                 onSelect = { mode -> onUpdate { it.copy(readingMode = mode) } },
             )
 
-            SectionLabel(stringResource(R.string.settings_theme))
-            ChipRow(
-                options = ReaderTheme.entries.filter { it != ReaderTheme.CUSTOM },
-                selected = rs.theme,
-                label = { it.label() },
-                onSelect = { theme -> onUpdate { it.copy(theme = theme) } },
-            )
+            ReaderThemePreference(rs, onUpdate)
 
             SectionLabel(stringResource(R.string.settings_font_size, rs.fontSizeSp.toInt()))
             Slider(

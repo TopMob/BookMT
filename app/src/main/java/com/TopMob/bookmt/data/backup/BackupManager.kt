@@ -231,6 +231,7 @@ class BackupManager @Inject constructor(
             // Older backups can contain only settings or external book URIs. Never infer orphaned
             // books from missing ZIP entries; their current files may still be referenced by the DB.
             com.TopMob.bookmt.data.settings.AppSettingsDataStore.invalidateLanguageCache(context)
+            com.TopMob.bookmt.data.settings.AppearanceLaunchCache.invalidate(context)
             if (pending.deleteRecursively()) transaction.finish()
         }
     }

@@ -84,6 +84,17 @@ def main():
             path = target.split("#", 1)[0]
             if not (document.parent / path).is_file():
                 errors.append(f"Broken link: {document.name} -> {target}")
+    runtime = ROOT.parent.parent / "app/src/main/java/com/TopMob/bookmt/ui/theme/ComfortPalette.kt"
+    if runtime.exists():
+        kotlin = runtime.read_text(encoding="utf-8")
+        for name, tokens in palettes.items():
+            match = re.search(r"val " + name.capitalize() + r" = ComfortPalette\((.*?)\n    \)", kotlin, re.S)
+            assert match, f"Missing runtime palette {name}"
+            for key, value in tokens.items():
+                expected = str(value) + "f" if key == "scrimAlpha" else "Color(0xFF" + value[1:] + ")"
+                if not re.search(r"\b" + key + r" = " + re.escape(expected) + r",", match.group(1)):
+                    errors.append(f"Runtime token differs from design: {name}.{key}")
+        print("Runtime Kotlin palettes match the design tokens.")
     if errors:
         raise SystemExit("\n".join(errors))
     print(f"PASS: {checks} contrast checks, theme schema, local Markdown links and code fences.")

@@ -33,7 +33,8 @@ class AppSettingsViewModel @Inject constructor(
     ) { appSettings, readerSettings ->
         AppSettingsUiState(
             language = appSettings.language,
-            readerSettings = readerSettings
+            readerSettings = readerSettings,
+            ready = true,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -75,6 +76,7 @@ class AppSettingsViewModel @Inject constructor(
 data class AppSettingsUiState(
     val language: AppLanguage = AppLanguage.SYSTEM,
     val readerSettings: ReaderSettings = ReaderSettings(),
+    val ready: Boolean = false,
 )
 
 /** One-off results of a backup/restore action, surfaced to the screen. */

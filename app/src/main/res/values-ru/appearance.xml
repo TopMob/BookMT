@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="appearance_title">Оформление</string>
+    <string name="appearance_app_theme">Тема приложения</string>
+    <string name="appearance_system">Как в системе</string>
+    <string name="appearance_same_as_app">Как в приложении</string>
+    <string name="appearance_motion">Анимации</string>
+    <string name="appearance_motion_system">Как в системе</string>
+    <string name="appearance_motion_minimal">Минимум движения</string>
+    <string name="appearance_motion_off">Без анимаций</string>
+    <string name="appearance_motion_hint">Мягкие переходы. Отключение анимаций в Android отключает их и здесь.</string>
+    <string name="comfort_loading">Загрузка…</string>
+    <string name="comfort_library_title">Ваша библиотека</string>
+    <string name="comfort_library_hint">Добавьте книгу с устройства, чтобы начать читать.</string>
+    <string name="comfort_no_matches">По этим условиям книг нет</string>
+    <string name="comfort_no_matches_hint">Попробуйте изменить поиск или сбросить фильтры.</string>
+    <string name="comfort_details">Подробнее</string>
+</resources>

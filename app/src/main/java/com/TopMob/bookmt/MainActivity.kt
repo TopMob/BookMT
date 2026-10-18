@@ -12,6 +12,21 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.os.Bundle
+import android.content.res.Configuration
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.platform.compositionContext
+import androidx.compose.ui.platform.createLifecycleAwareWindowRecomposer
+import androidx.core.view.WindowCompat
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.currentBackStackEntryAsState
+import com.TopMob.bookmt.data.settings.AppearanceLaunchCache
+import com.TopMob.bookmt.domain.model.*
+import com.TopMob.bookmt.presentation.navigation.Screen
+import com.TopMob.bookmt.ui.theme.AppMotionScale
+import com.TopMob.bookmt.ui.theme.ComfortMotion
+import com.TopMob.bookmt.ui.theme.LocalComfortMotion
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -47,6 +62,7 @@ import dagger.hilt.android.AndroidEntryPoint
 class MainActivity : ComponentActivity(), VolumeKeyController {
 
     @Inject lateinit var documentImport: DocumentImport
+    private lateinit var motionScale: AppMotionScale
     private var importedBookId by mutableStateOf<Long?>(null)
 
     override var onVolumeKey: ((VolumeKey) -> Boolean)? = null
@@ -59,20 +75,54 @@ class MainActivity : ComponentActivity(), VolumeKeyController {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val launchAppearance = AppearanceLaunchCache.read(this)
+        val systemDark = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        setTheme(when (launchAppearance.appTheme.resolve(systemDark)) {
+            ReaderTheme.DAY, ReaderTheme.CUSTOM -> R.style.Theme_BookMT_Day
+            ReaderTheme.SEPIA -> R.style.Theme_BookMT_Sepia
+            ReaderTheme.NIGHT -> R.style.Theme_BookMT_Night
+            ReaderTheme.AMOLED_BLACK -> R.style.Theme_BookMT_Black
+        })
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        motionScale = AppMotionScale(this).also { it.mode = launchAppearance.motion; it.start() }
+        window.decorView.compositionContext = window.decorView.createLifecycleAwareWindowRecomposer(
+            coroutineContext = motionScale, lifecycle = lifecycle)
         if (savedInstanceState == null) importIntent(intent)
         setContent {
-            BookMTTheme {
-                ApplyLanguageChanges()
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background,
-                ) {
-                    BookMTNavHost(importedBookId = importedBookId, onImportHandled = { importedBookId = null })
+            val viewModel: AppSettingsViewModel = hiltViewModel()
+            val settingsState by viewModel.uiState.collectAsStateWithLifecycle()
+            val appearance = if (settingsState.ready) settingsState.readerSettings.appearance else launchAppearance
+            val darkSystem = isSystemInDarkTheme()
+            val appTheme = appearance.appTheme.resolve(darkSystem)
+            val navController = rememberNavController()
+            val entry by navController.currentBackStackEntryAsState()
+            val activeTheme = if (entry?.destination?.route == Screen.Reader.route && settingsState.ready)
+                settingsState.readerSettings.resolvedTheme(darkSystem) else appTheme
+            SideEffect {
+                motionScale.mode = appearance.motion
+                val dark = activeTheme == ReaderTheme.NIGHT || activeTheme == ReaderTheme.AMOLED_BLACK
+                WindowCompat.getInsetsController(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = !dark
+                    isAppearanceLightNavigationBars = !dark
+                }
+            }
+            CompositionLocalProvider(LocalComfortMotion provides ComfortMotion(appearance.motion, motionScale.systemScale > 0f)) {
+                BookMTTheme(activeTheme) {
+                    ApplyLanguageChanges()
+                    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        // Never publish a default-themed navigation graph before persisted preferences arrive.
+                        if (settingsState.ready) BookMTNavHost(navController = navController,
+                            importedBookId = importedBookId, onImportHandled = { importedBookId = null })
+                    }
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        if (::motionScale.isInitialized) motionScale.stop()
+        super.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent) {

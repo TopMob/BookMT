@@ -1,5 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.BookMT" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.BookMT" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/launch_background</item>
+        <item name="android:colorAccent">@color/launch_accent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+    <style name="Theme.BookMT.Day" parent="Theme.BookMT">
+        <item name="android:windowBackground">#F7F5F0</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+    <style name="Theme.BookMT.Sepia" parent="Theme.BookMT">
+        <item name="android:windowBackground">#EDE2CA</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+    <style name="Theme.BookMT.Night" parent="Theme.BookMT">
+        <item name="android:windowBackground">#191D1C</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+    <style name="Theme.BookMT.Black" parent="Theme.BookMT.Night">
+        <item name="android:windowBackground">#000000</item>
+    </style>
 </resources>

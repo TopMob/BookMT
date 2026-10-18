@@ -1,6 +1,7 @@
 # BookMT — comfort-first interface roadmap
 
-Status: **design specification; not implemented**. Date: 2026-10-18.
+Status: **target specification; implementation in progress**. Date: 2026-10-18.
+First increment: [P0/P1 implementation report](IMPLEMENTATION_2026-10-18.md).
 Inspected baseline: `192239150dc1ea89014b97fe35d0b2d8e6a8cf88`.
 Audience: the implementation agent and the owner. Product decisions below come from
 the owner's instructions in this conversation. They supersede conflicting UX proposals
@@ -34,8 +35,9 @@ durations. Screen specifications determine actions and state. If implementation
 exposes a real conflict, record the decision here and update both conflicting
 sections before coding; do not silently substitute framework defaults.
 
-Numbers are design targets, not measurements of current performance. This work
-inspected source and existing test reports; it did not conduct a new device study.
+Numbers are design targets, not measurements of current performance. The original
+design work inspected source and test reports. Implementation evidence and remaining
+checks are tracked separately in the linked implementation report.
 Existing features are mapped below. Proposed capabilities are explicitly gated
 in the delivery roadmap: a UI must not pretend an unavailable capability works.
 

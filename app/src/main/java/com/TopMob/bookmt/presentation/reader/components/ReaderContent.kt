@@ -4,6 +4,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.*
@@ -62,6 +63,7 @@ fun ReaderContent(
     prioritizeAudio: Boolean = false,
     onRegisterLineScroll: (((Int) -> Unit)?) -> Unit = {},
 ) {
+    val motion = com.TopMob.bookmt.ui.theme.LocalComfortMotion.current
     val density = LocalDensity.current
     val measurer = rememberTextMeasurer(cacheSize = 16)
     val latestOffset by rememberUpdatedState(currentOffset)
@@ -132,13 +134,12 @@ fun ReaderContent(
             }
         }
         if (failure != null) {
-            Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(stringResource(R.string.reader_cache_error), color = colors.text)
-                TextButton(onClick = onRebuildCache) { Text(stringResource(R.string.reader_rebuild_cache)) }
-            }
+            com.TopMob.bookmt.presentation.components.ComfortErrorState(
+                message = stringResource(R.string.reader_cache_error), actionLabel = stringResource(R.string.reader_rebuild_cache),
+                onAction = onRebuildCache, modifier = Modifier.align(Alignment.Center))
             return@BoxWithConstraints
         }
-        if (pages.isEmpty()) { CircularProgressIndicator(Modifier.align(Alignment.Center)); return@BoxWithConstraints }
+        if (pages.isEmpty()) { com.TopMob.bookmt.presentation.components.ComfortLoadingIndicator(Modifier.align(Alignment.Center)); return@BoxWithConstraints }
         // Event collectors from the previous composition must keep using the
         // same boundaries as their list indices until that composition is replaced.
         val displayedPages = pages
@@ -194,7 +195,9 @@ fun ReaderContent(
             // Use the actual rendered layout: no asynchronous remeasurement/debounce can
             // lose the last visible line when the reader closes during a drag or fling.
             LaunchedEffect(ready, displayedPages, navigationVersion) {
-                if (!ready) return@LaunchedEffect
+                if (!ready) {
+                    return@LaunchedEffect
+                }
                 latestOnOffset(restoredOffset)
                 var initial = true
                 snapshotFlow {
@@ -216,11 +219,11 @@ fun ReaderContent(
                         pager.currentPage - maxAdvance,
                         pager.currentPage + maxAdvance
                     ).coerceIn(0, displayedPages.lastIndex)
-                    pager.animateScrollToPage(target)
+                    if (motion.spatial) pager.animateScrollToPage(target, animationSpec = tween(160)) else pager.scrollToPage(target)
                 }
             }
 
-            val scrollController = remember(list, scope) {
+            val scrollController = remember(list, scope, motion) {
                 object {
                     private val lock = Any()
                     private var pendingDelta = 0f
@@ -240,9 +243,11 @@ fun ReaderContent(
                                         step = pendingDelta
                                         pendingDelta = 0f
                                     }
-                                    if (kotlin.math.abs(step) < 1f) break
-                                    val duration = if (kotlin.math.abs(step) < 250f) 120 else 240
-                                    list.animateScrollBy(
+                                    if (kotlin.math.abs(step) < 1f) {
+                                        break
+                                    }
+                                    val duration = 160
+                                    if (!motion.spatial) list.scrollBy(step) else list.animateScrollBy(
                                         value = step,
                                         animationSpec = tween(
                                             durationMillis = duration,
@@ -286,8 +291,8 @@ fun ReaderContent(
 
                 if (mode == ReadingMode.PAGED) {
                     if (targetIndex != pager.currentPage) {
-                        if (kotlin.math.abs(targetIndex - pager.currentPage) <= 1) {
-                            pager.animateScrollToPage(targetIndex)
+                        if (motion.spatial && kotlin.math.abs(targetIndex - pager.currentPage) <= 1) {
+                            pager.animateScrollToPage(targetIndex, animationSpec = tween(160))
                         } else {
                             pager.scrollToPage(targetIndex)
                         }
@@ -303,7 +308,7 @@ fun ReaderContent(
                         if (approximateLineY > viewportHeight * 0.72f || approximateLineY < 0) {
                             val delta = (approximateLineY - (viewportHeight * 0.30f)).coerceAtLeast(0f)
                             if (delta > 20f && !list.isScrollInProgress) {
-                                list.animateScrollBy(delta, tween(durationMillis = 280, easing = FastOutSlowInEasing))
+                                if (motion.spatial) list.animateScrollBy(delta, tween(durationMillis = 160, easing = FastOutSlowInEasing)) else list.scrollBy(delta)
                             }
                         }
                     }
@@ -338,7 +343,7 @@ fun ReaderContent(
                         colors.ttsHighlight, { result -> if (result == null) layouts.remove(page.startOffset) else layouts[page.startOffset] = result })
                 }
             }
-            if (!ready) CircularProgressIndicator(Modifier.align(Alignment.Center))
+            if (!ready) com.TopMob.bookmt.presentation.components.ComfortLoadingIndicator(Modifier.align(Alignment.Center))
         }
     }
     link?.let { target ->

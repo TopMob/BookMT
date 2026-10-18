@@ -1,6 +1,7 @@
 # Design validation and delivery state
 
 Date: 2026-10-18. This record covers **documentation**, not implemented UI.
+Implementation evidence is tracked in [the first increment report](IMPLEMENTATION_2026-10-18.md).
 
 ## Checked
 
@@ -40,8 +41,8 @@ belong to implementation phases and are specified in document 06.
 | Work | State |
 |---|---|
 | Design specification and token validation | Complete |
-| P0 device/UI baseline and settings migration | Not started |
-| P1 visual/interaction primitives | Not started |
+| P0 device/UI baseline and settings migration | Migration implemented; reliable performance baseline pending |
+| P1 visual/interaction primitives | Shared foundation implemented; full screen/accessibility coverage pending |
 | P2 library/settings/reader chrome | Not started |
 | P3 file/task workflows | Not started |
 | P4 selection/marks/reading tools | Not started |

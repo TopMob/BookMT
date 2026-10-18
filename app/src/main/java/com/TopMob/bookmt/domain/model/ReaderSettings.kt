@@ -23,7 +23,7 @@ data class ReaderSettings(
     /** Absolute path to a user-supplied TTF/OTF font; overrides [fontFamily] when set. */
     val customFontPath: String? = null,
     val fullScreen: Boolean = false,
-    val volumeKeysEnabled: Boolean = true,
+    val volumeKeysEnabled: Boolean = false,
     val orientation: ReaderOrientation = ReaderOrientation.SYSTEM,
     val autoPageSeconds: Int = 30,
     val ttsMaleVoice: Boolean = false,
@@ -32,6 +32,7 @@ data class ReaderSettings(
     val bookFormatting: Boolean = true,
     val ttsSentencePauseMs: Int = 220,
     val ttsParagraphPauseMs: Int = 550,
+    val appearance: AppearanceSettings = AppearanceSettings(),
 ) {
     companion object {
         const val MIN_FONT_SIZE_SP = 10f
@@ -44,6 +45,7 @@ data class ReaderSettings(
     fun sanitized(): ReaderSettings {
         val defaults = ReaderSettings()
         return copy(
+            appearance = appearance.sanitized(),
             fontSizeSp = fontSizeSp.takeIf { it.isFinite() }?.coerceIn(MIN_FONT_SIZE_SP, MAX_FONT_SIZE_SP) ?: defaults.fontSizeSp,
             lineSpacingMultiplier = lineSpacingMultiplier.takeIf { it.isFinite() }?.coerceIn(MIN_LINE_SPACING, MAX_LINE_SPACING) ?: defaults.lineSpacingMultiplier,
             horizontalMarginDp = horizontalMarginDp.coerceIn(0, 64),

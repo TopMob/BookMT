@@ -70,10 +70,12 @@ fun ReaderTopBar(
     onAutoPage: () -> Unit = {},
     onShareNotes: () -> Unit = {},
 ) {
+    val motion = com.TopMob.bookmt.ui.theme.LocalComfortMotion.current
+    val distance = with(androidx.compose.ui.platform.LocalDensity.current) { 8.dp.roundToPx() }
     AnimatedVisibility(
         visible = visible,
-        enter = slideInVertically { -it } + fadeIn(),
-        exit = slideOutVertically { -it } + fadeOut(),
+        enter = motion.enterBar(-distance),
+        exit = motion.exitBar(-distance),
     ) {
         TopAppBar(
             title = {
@@ -148,12 +150,14 @@ fun ReaderBottomBar(
     paginationReady: Boolean = true,
     onResumeSavedTts: (() -> Unit)? = null,
 ) {
+    val motion = com.TopMob.bookmt.ui.theme.LocalComfortMotion.current
+    val distance = with(androidx.compose.ui.platform.LocalDensity.current) { 8.dp.roundToPx() }
     AnimatedVisibility(
         visible = visible,
-        enter = slideInVertically { it } + fadeIn(),
-        exit = slideOutVertically { it } + fadeOut(),
+        enter = motion.enterBar(distance),
+        exit = motion.exitBar(distance),
     ) {
-        Surface(tonalElevation = 3.dp) {
+        Surface(tonalElevation = 0.dp) {
             Column(modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -225,7 +229,7 @@ fun ReaderBottomBar(
                             }
                         }
                         if (ttsStatus == TtsStatus.PREPARING) {
-                            androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            com.TopMob.bookmt.presentation.components.ComfortLoadingIndicator(compact = true)
                         }
                         if (ttsStatus == TtsStatus.PLAYING || ttsStatus == TtsStatus.PAUSED || ttsStatus == TtsStatus.PREPARING) {
                             IconButton(onClick = onStopTts) {

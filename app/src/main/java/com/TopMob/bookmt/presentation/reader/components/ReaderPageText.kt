@@ -19,6 +19,7 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import com.TopMob.bookmt.R
+import com.TopMob.bookmt.ui.theme.annotationColor
 import java.io.File
 
 @Composable
@@ -28,6 +29,7 @@ fun ReaderPageText(page: ReaderPage, style: TextStyle, bookmarks: List<Bookmark>
     onLoadError: (Throwable) -> Unit = {}, spokenSegment: com.TopMob.bookmt.domain.model.TextSegment? = null,
     ttsHighlightColor: Color = Color(0x6642A5F5),
     onPageLayout: (TextLayoutResult?) -> Unit = {}) {
+    val palette = com.TopMob.bookmt.ui.theme.LocalComfortPalette.current
     val latestError by rememberUpdatedState(onLoadError)
     val loaded by produceState<ReaderPage?>(null, page) {
         try { value = withContext(Dispatchers.IO) { page.materialized() } }
@@ -65,16 +67,16 @@ fun ReaderPageText(page: ReaderPage, style: TextStyle, bookmarks: List<Bookmark>
         val visibleMatches = remember(matches, pageStart, pageEnd) {
             matches.filter { it.offset < pageEnd && (it.offset + it.length) > pageStart }
         }
-        val text = remember(rich, visibleBookmarks, visibleMatches, spokenSegment, ttsHighlightColor) {
+        val text = remember(rich, visibleBookmarks, visibleMatches, spokenSegment, ttsHighlightColor, palette) {
             buildAnnotatedString {
                 append(rich.text)
                 fun mark(start: Int, end: Int, color: Color) {
                     val from = (start - page.startOffset).coerceIn(0, length)
                     val to = (end - page.startOffset).coerceIn(0, length)
-                    if (from < to) addStyle(SpanStyle(background = color.copy(alpha = 0.45f)), from, to)
+                    if (from < to) addStyle(SpanStyle(background = color), from, to)
                 }
-                visibleBookmarks.forEach { mark(it.position, it.endPosition, Color(it.colorArgb ?: 0xFFFFD54F.toInt())) }
-                visibleMatches.forEach { mark(it.offset, it.offset + it.length, Color(0xFF80CBC4)) }
+                visibleBookmarks.forEach { mark(it.position, it.endPosition, palette.annotationColor(it.colorArgb)) }
+                visibleMatches.forEach { mark(it.offset, it.offset + it.length, palette.search) }
                 spokenSegment?.let { segment ->
                     val from = (segment.startOffset - page.startOffset).coerceIn(0, length)
                     val to = (segment.endOffset - page.startOffset).coerceIn(0, length)

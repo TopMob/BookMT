@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.systemBars
@@ -53,28 +54,31 @@ fun ReaderSideDrawer(
     onDismiss: () -> Unit,
     content: @Composable () -> Unit,
 ) {
-    if (!visible) return
+    val motion = com.TopMob.bookmt.ui.theme.LocalComfortMotion.current
+    val palette = com.TopMob.bookmt.ui.theme.LocalComfortPalette.current
     Box(modifier = Modifier.fillMaxSize()) {
         // Scrim
-        AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut()) {
+        AnimatedVisibility(visible = visible, enter = fadeIn(androidx.compose.animation.core.tween(motion.duration(140))), exit = fadeOut(androidx.compose.animation.core.tween(motion.duration(120)))) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.4f))
+                    .background(palette.scrim.copy(alpha = palette.scrimAlpha))
                     .clickable(onClick = onDismiss),
             )
         }
         AnimatedVisibility(
             visible = visible,
-            enter = slideInHorizontally { -it },
-            exit = slideOutHorizontally { -it },
+            enter = fadeIn(androidx.compose.animation.core.tween(motion.duration(140))) +
+                if (motion.spatial) slideInHorizontally(androidx.compose.animation.core.tween(200, easing = com.TopMob.bookmt.ui.theme.ComfortMotion.EnterEase)) { -it } else androidx.compose.animation.EnterTransition.None,
+            exit = fadeOut(androidx.compose.animation.core.tween(motion.duration(120))) +
+                if (motion.spatial) slideOutHorizontally(androidx.compose.animation.core.tween(160, easing = com.TopMob.bookmt.ui.theme.ComfortMotion.ExitEase)) { -it } else androidx.compose.animation.ExitTransition.None,
             modifier = Modifier.align(Alignment.CenterStart),
         ) {
             Surface(
-                tonalElevation = 4.dp,
+                tonalElevation = 0.dp,
                 modifier = Modifier
                     .fillMaxHeight()
-                    .width(320.dp)
+                    .fillMaxWidth(0.9f).widthIn(max = 320.dp)
                     .windowInsetsPadding(WindowInsets.systemBars),
             ) {
                 content()

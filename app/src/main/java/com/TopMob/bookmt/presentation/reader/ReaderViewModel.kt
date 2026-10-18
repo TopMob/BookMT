@@ -85,7 +85,7 @@ class ReaderViewModel @Inject constructor(
 
     private fun observeSettings() = viewModelScope.launch {
         settingsRepository.settings.collect { settings ->
-            _uiState.update { it.copy(settings = settings) }
+            _uiState.update { it.copy(settings = settings, settingsLoaded = true) }
             settingsReady.complete(Unit)
         }
     }
