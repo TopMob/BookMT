@@ -1,7 +1,10 @@
 # Design validation and delivery state
 
 Date: 2026-10-18. This record covers **documentation**, not implemented UI.
-Implementation evidence is tracked in [the first increment report](IMPLEMENTATION_2026-10-18.md).
+Implementation evidence is tracked in [the first increment report](IMPLEMENTATION_2026-10-18.md),
+[library/settings report](IMPLEMENTATION_P2_2026-10-18.md) and
+[FB2 import follow-up](IMPLEMENTATION_FB2_2026-10-18.md).
+Older design choices are superseded by the latest owner revision in README.
 
 ## Checked
 

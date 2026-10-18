@@ -1,5 +1,7 @@
 package com.TopMob.bookmt.presentation.bookshelf.components
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Checklist
@@ -46,18 +49,20 @@ fun BookContextSheet(
     onRequestDelete: () -> Unit,
     onDismiss: () -> Unit,
     onFavorite: () -> Unit = {},
+    onRead: () -> Unit = {},
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val isRead = book.progress >= 1f
+    val isRead = book.isFinished
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
             Text(
                 text = book.title,
                 style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
+                maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
             )
+            MenuRow(icon = Icons.AutoMirrored.Filled.MenuBook, text = stringResource(R.string.book_open), onClick = onRead)
             MenuRow(
                 icon = Icons.Outlined.Info,
                 text = stringResource(R.string.book_menu_info),
@@ -69,7 +74,7 @@ fun BookContextSheet(
             MenuRow(
                 icon = Icons.Outlined.CheckCircle,
                 text = stringResource(
-                    if (isRead) R.string.book_menu_mark_unread else R.string.book_menu_mark_read,
+                    if (isRead) R.string.library_keep_position_unread else R.string.book_menu_mark_read,
                 ),
                 onClick = onToggleRead,
             )

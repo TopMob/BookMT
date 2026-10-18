@@ -40,7 +40,7 @@ fun BookCover(
             AsyncImage(
                 model = book.coverImagePath,
                 contentDescription = book.title,
-                contentScale = ContentScale.Crop,
+                contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),
             )
         } else {

@@ -45,6 +45,14 @@ class BookshelfViewModelTest {
             runCurrent()
             assertEquals(1, subscriptions)
             assertEquals(2L, vm.uiState.value.continueReadingBook?.id)
+            coEvery { repository.setCompleted(any(), any()) } just Runs
+            vm.onSetReadState(books.value[1], true)
+            runCurrent()
+            vm.onSetReadState(books.value[0], false)
+            runCurrent()
+            coVerify(exactly = 1) { repository.setCompleted(2L, true) }
+            coVerify(exactly = 1) { repository.setCompleted(1L, false) }
+            coVerify(exactly = 0) { repository.updateProgress(any(), any(), any()) }
             vm.onSearchChange("no matching title")
             runCurrent()
             assertTrue(vm.uiState.value.books.isEmpty())

@@ -52,7 +52,7 @@ class AppearanceFoundationTest {
         }
     }
 
-    @Test fun readerThemeChoiceIsOwnedByReaderAndRetainsExplicitSelection() {
+    @Test fun readerThemeChoiceUpdatesTheUnifiedPalette() {
         val value = mutableStateOf(ReaderSettings().withReaderTheme(ReaderTheme.NIGHT))
         var observedSurface = androidx.compose.ui.graphics.Color.Unspecified
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -69,7 +69,8 @@ class AppearanceFoundationTest {
         compose.onNodeWithText(context.getString(R.string.settings_theme_sepia)).performClick()
         compose.runOnIdle {
             assertEquals(ReaderTheme.SEPIA, value.value.theme)
-            assertFalse(value.value.appearance.readerFollowsApp)
+            assertTrue(value.value.appearance.readerFollowsApp)
+            assertEquals(AppThemeMode.SEPIA, value.value.appearance.appTheme)
             assertEquals(ComfortPalettes.Sepia.surface, observedSurface)
             assertEquals(ReaderTheme.NIGHT, value.value.appearance.lastDarkTheme)
         }

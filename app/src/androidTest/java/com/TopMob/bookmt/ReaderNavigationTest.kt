@@ -27,6 +27,70 @@ import org.junit.Test
 class ReaderNavigationTest {
     @get:Rule val compose = createComposeRule()
 
+
+    @Test fun pageButtonsStartAtFirstLineThatWasNotFullyVisible() = checkPageButtonGeometry(18)
+    @Test fun volumePagingUsesWholeReadableScreenWithLargeText() = checkPageButtonGeometry(29)
+
+    private fun checkPageButtonGeometry(fontSp: Int) {
+        val text = (0..500).joinToString("\n") { "Row ${it.toString().padStart(4, '0')}: a quiet evening reading a local book." }
+        val content = BookContent("Paging", null, listOf(Chapter(0, "Chapter", text, 0)), TableOfContents.EMPTY)
+        val offset = mutableStateOf(0)
+        var total = 0
+        var turn: ((Int) -> Unit)? = null
+        var volume: ((Int) -> Unit)? = null
+        compose.setContent {
+            ReaderContent(content, TextStyle(fontSize = fontSp.sp, lineHeight = (fontSp * 1.4f).sp),
+                ReaderColors.forTheme(ReaderTheme.DAY), ReadingMode.SCROLL, 16, 19,
+                offset.value, 0, { offset.value = it }, { _, count -> total = count },
+                { turn = it }, {}, Modifier.size(320.dp, 480.dp).testTag("paging-reader"),
+                onRegisterLineScroll = { volume = it })
+        }
+        compose.waitUntil(30_000) { total > 0 && turn != null && volume != null }
+        compose.waitForIdle()
+        fun layouts(): List<Pair<androidx.compose.ui.semantics.SemanticsNode, androidx.compose.ui.text.TextLayoutResult>> =
+            compose.onAllNodes(hasText("Row", substring = true)).fetchSemanticsNodes().mapNotNull { node ->
+                val results = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+                node.config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action?.invoke(results)
+                results.firstOrNull()?.let { node to it }
+            }
+        repeat(4) { step ->
+            val bounds = compose.onNodeWithTag("paging-reader").fetchSemanticsNode().boundsInRoot
+            val margin = bounds.width * 19f / 320f
+            val bottom = bounds.bottom - margin
+            val candidates = layouts().flatMap { (node, layout) ->
+                val start = text.indexOf(layout.layoutInput.text.text)
+                assertTrue("Page must correspond to original source", start >= 0)
+                (0 until layout.lineCount).filter { layout.getLineStart(it) < layout.layoutInput.text.length && node.positionInRoot.y + layout.getLineBottom(it) > bottom + 0.5f }
+                    .map { start + layout.getLineStart(it) }
+            }
+            assertTrue("Need a clipped or following line", candidates.isNotEmpty())
+            val target = candidates.min()
+            compose.runOnIdle { (if (step % 2 == 0) turn else volume)?.invoke(1) }
+            try { compose.waitUntil(15_000) {
+                layouts().any { (node, layout) ->
+                    val start = text.indexOf(layout.layoutInput.text.text)
+                    if (target !in start until start + layout.layoutInput.text.length) false
+                    else kotlin.math.abs(node.positionInRoot.y + layout.getLineTop(layout.getLineForOffset(target - start)) - (bounds.top + margin)) <= 2f
+                }
+            } } catch (failure: androidx.compose.ui.test.ComposeTimeoutException) {
+                throw AssertionError("Step=$step target=$target top=${bounds.top + margin}; pages=" + layouts().map { (node, layout) ->
+                    val start = text.indexOf(layout.layoutInput.text.text)
+                    "start=$start y=${node.positionInRoot.y} lines=${layout.lineCount} targetY=" +
+                        if (target in start until start + layout.layoutInput.text.length) (node.positionInRoot.y + layout.getLineTop(layout.getLineForOffset(target - start))) else "outside"
+                }, failure)
+            }
+        }
+        val beforeBack = offset.value
+        compose.runOnIdle { turn?.invoke(-1) }
+        compose.waitUntil(15_000) { offset.value < beforeBack }
+        compose.waitForIdle()
+        val bounds = compose.onNodeWithTag("paging-reader").fetchSemanticsNode().boundsInRoot
+        val top = bounds.top + bounds.width * 19f / 320f
+        assertTrue("Previous page must also start at a whole line", layouts().any { (node, layout) ->
+            (0 until layout.lineCount).any { kotlin.math.abs(node.positionInRoot.y + layout.getLineTop(it) - top) <= 2f }
+        })
+    }
+
     @Test fun unloadedPagesKeepLazyCompositionBounded() {
         val reads = java.util.concurrent.atomic.AtomicInteger()
         val text = "A visible page of text. ".repeat(15)

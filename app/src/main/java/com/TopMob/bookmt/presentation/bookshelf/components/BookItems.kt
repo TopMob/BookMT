@@ -2,133 +2,71 @@ package com.TopMob.bookmt.presentation.bookshelf.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.TopMob.bookmt.R
 import com.TopMob.bookmt.domain.model.Book
 
-/** Grid cell: cover with progress overlay, title and author beneath. */
 @Composable
-fun BookGridItem(
-    book: Book,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    selected: Boolean = false,
-) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .then(
-                if (selected) {
-                    Modifier.background(MaterialTheme.colorScheme.primaryContainer)
-                } else {
-                    Modifier
-                },
-            )
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(8.dp),
-    ) {
-        BookCover(
-            book = book,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(COVER_ASPECT_RATIO),
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = book.title,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        book.author?.let {
-            Text(
-                text = it,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-/** List row: small cover, title/author, and an explicit progress indicator + percent. */
-@Composable
-fun BookListItem(
-    book: Book,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    selected: Boolean = false,
-) {
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-        colors = if (selected) {
-            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        } else {
-            CardDefaults.cardColors()
-        },
-    ) {
-        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            BookCover(
-                book = book,
-                modifier = Modifier
-                    .size(width = 48.dp, height = 64.dp),
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = book.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                book.author?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    LinearProgressIndicator(
-                        progress = { book.progress.coerceIn(0f, 1f) },
-                        modifier = Modifier.weight(1f),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = "${book.progressPercent}%",
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
+fun BookGridItem(book: Book, onClick: () -> Unit, onLongClick: () -> Unit,
+    modifier: Modifier = Modifier, selected: Boolean = false, selectionMode: Boolean = false) {
+    Column(modifier.clip(RoundedCornerShape(12.dp))
+        .background(if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background)
+        .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(8.dp)) {
+        Box {
+            BookCover(book, Modifier.fillMaxWidth().aspectRatio(2f / 3f))
+            Surface(Modifier.align(Alignment.TopEnd), color = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(bottomStart = 12.dp)) {
+                if (selectionMode) Checkbox(selected, { onClick() })
+                else IconButton(onClick = onLongClick) { Icon(Icons.Filled.MoreVert, stringResource(R.string.action_more) + ": " + book.title) }
             }
         }
+        Spacer(Modifier.height(8.dp))
+        Text(book.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        book.author?.let { Text(it, style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        BookStatus(book)
     }
 }
 
-private const val COVER_ASPECT_RATIO = 0.66f
+@Composable
+fun BookListItem(book: Book, onClick: () -> Unit, onLongClick: () -> Unit,
+    modifier: Modifier = Modifier, selected: Boolean = false, selectionMode: Boolean = false) {
+    Card(modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            BookCover(book, Modifier.size(56.dp, 84.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(book.title, style = MaterialTheme.typography.titleSmall, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                book.author?.let { Text(it, style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                BookStatus(book)
+            }
+            if (selectionMode) Checkbox(selected, { onClick() })
+            else IconButton(onClick = onLongClick) { Icon(Icons.Filled.MoreVert, stringResource(R.string.action_more) + ": " + book.title) }
+        }
+    }
+}
+
+@Composable
+private fun BookStatus(book: Book) {
+    Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        if ("Favorites" in book.tags) Icon(Icons.Filled.Favorite, stringResource(R.string.favorites), Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(if (book.isFinished) stringResource(R.string.library_finished) else stringResource(R.string.library_progress_label, book.progressPercent),
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}

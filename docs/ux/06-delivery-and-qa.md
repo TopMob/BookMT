@@ -37,7 +37,7 @@ Day/Night; timings/frame traces on emulator with hardware noted; backup fixture;
 settings migration proposal. No subjective “faster/smoother” claims without comparison.
 Record existing text-position regression tests and keep them green throughout.
 
-Model new settings explicitly: appThemeMode, readerThemeOverride, lastLightTheme,
+Model new settings explicitly: appThemeMode (shared app/reader; owner revision 2026-10-18), lastLightTheme,
 lastDarkTheme, motionMode, hapticsPreference, pageAnimation, tapPreset,
 brightnessGestureEnabled, followSpeech preference if needed. Existing font/margins/
 voice/pause/brightness/volume/fullscreen/orientation values stay unchanged.

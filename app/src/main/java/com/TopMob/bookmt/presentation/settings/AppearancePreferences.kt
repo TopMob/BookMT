@@ -50,10 +50,7 @@ fun <T> ComfortChoiceRow(title: String, selected: T, options: List<T>, label: @C
 
 @Composable
 fun AppearancePreferences(settings: ReaderSettings, update: ((ReaderSettings) -> ReaderSettings) -> Unit) {
-    Text(stringResource(R.string.appearance_title), style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
-    ComfortChoiceRow(stringResource(R.string.appearance_app_theme), settings.appearance.appTheme,
-        AppThemeMode.entries, { appThemeLabel(it) }, { value -> update { it.copy(appearance = it.appearance.copy(appTheme = value)) } })
+    ReaderThemePreference(settings, update)
     ComfortChoiceRow(stringResource(R.string.appearance_motion), settings.appearance.motion,
         MotionMode.entries, { motionLabel(it) }, { value -> update { it.copy(appearance = it.appearance.copy(motion = value)) } })
     Text(stringResource(R.string.appearance_motion_hint), style = MaterialTheme.typography.bodyMedium,
@@ -62,12 +59,8 @@ fun AppearancePreferences(settings: ReaderSettings, update: ((ReaderSettings) ->
 
 @Composable
 fun ReaderThemePreference(settings: ReaderSettings, update: ((ReaderSettings) -> ReaderSettings) -> Unit) {
-    // null means inheritance; CUSTOM remains readable in old preferences, but has no unfinished editor.
-    val selected = if (settings.appearance.readerFollowsApp) null else settings.theme
-    val options = listOf<ReaderTheme?>(null) + ReaderTheme.entries.filter { it != ReaderTheme.CUSTOM }
-    ComfortChoiceRow(stringResource(R.string.settings_theme), selected, options, { value ->
-        if (value == null) stringResource(R.string.appearance_same_as_app) else readerThemeLabel(value)
-    }, { value -> update { if (value == null) it.copy(appearance = it.appearance.copy(readerFollowsApp = true)) else it.withReaderTheme(value) } })
+    ComfortChoiceRow(stringResource(R.string.settings_theme), settings.appearance.appTheme,
+        AppThemeMode.entries, { appThemeLabel(it) }, { value -> update { it.withAppTheme(value) } })
 }
 
 @Composable

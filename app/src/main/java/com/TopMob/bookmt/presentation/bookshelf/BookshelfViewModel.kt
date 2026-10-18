@@ -1,5 +1,6 @@
 package com.TopMob.bookmt.presentation.bookshelf
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.TopMob.bookmt.core.common.Resource
@@ -35,9 +36,15 @@ class BookshelfViewModel @Inject constructor(
     private val libraryPreferences: com.TopMob.bookmt.data.settings.LibraryPreferences,
     private val documentImport: com.TopMob.bookmt.data.importing.DocumentImport,
     private val dispatchers: com.TopMob.bookmt.core.common.DispatcherProvider,
+    private val savedState: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
 
-    private val query = MutableStateFlow(libraryPreferences.query())
+    private val query = MutableStateFlow(libraryPreferences.query().copy(
+        searchQuery = savedState["search"] ?: "",
+        tags = savedState.get<ArrayList<String>>("tags")?.toSet() ?: emptySet(),
+        status = savedState.get<String>("status")?.let { value -> com.TopMob.bookmt.domain.model.LibraryStatus.entries.firstOrNull { it.name == value } } ?: com.TopMob.bookmt.domain.model.LibraryStatus.ALL,
+        format = savedState.get<String>("format")?.let { value -> com.TopMob.bookmt.domain.model.BookFormat.entries.firstOrNull { it.name == value } },
+    ))
     private val viewMode = MutableStateFlow(libraryPreferences.viewMode())
     private val transientError = MutableStateFlow<String?>(null)
 
@@ -60,11 +67,17 @@ class BookshelfViewModel @Inject constructor(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-        initialValue = BookshelfUiState(),
+        initialValue = BookshelfUiState(query = query.value, viewMode = viewMode.value),
     )
 
     init {
-        viewModelScope.launch { query.collect { libraryPreferences.saveQuery(it) } }
+        viewModelScope.launch { query.collect {
+            libraryPreferences.saveQuery(it)
+            savedState["search"] = it.searchQuery
+            savedState["tags"] = ArrayList(it.tags)
+            savedState["status"] = it.status.name
+            savedState["format"] = it.format?.name
+        } }
         viewModelScope.launch { viewMode.collect { libraryPreferences.saveViewMode(it) } }
     }
     val importProgress = documentImport.progress
@@ -80,6 +93,9 @@ class BookshelfViewModel @Inject constructor(
     fun onFormatFilter(format: com.TopMob.bookmt.domain.model.BookFormat?) = query.update { it.copy(format = format) }
     fun onReverseSort() = query.update { it.copy(ascending = !it.ascending) }
     fun onResetFilters() = query.update { it.copy(tags = emptySet(), status = com.TopMob.bookmt.domain.model.LibraryStatus.ALL, format = null, searchQuery = "", onlyInProgress = false) }
+    fun onApplyFilters(value: BookQuery) = query.update { it.copy(tags = value.tags, status = value.status, format = value.format, onlyInProgress = false) }
+    fun onSortChange(order: BookSortOrder, ascending: Boolean) = query.update { it.copy(sortOrder = order, ascending = ascending) }
+    fun onSetViewMode(mode: BookshelfViewMode) { viewMode.value = mode }
     fun onToggleFavorite(book: Book) = libraryAction {
         bookRepository.updateTags(book.id, if ("Favorites" in book.tags) book.tags - "Favorites" else book.tags + "Favorites")
     }
@@ -114,10 +130,7 @@ class BookshelfViewModel @Inject constructor(
         libraryAction { bookRepository.deleteBook(bookId) }
     }
 
-    /**
-     * Toggles a book's read state. The library has no dedicated "read" flag, so read is modeled as
-     * full progress (1f) and unread as zero progress reset to the start of the book.
-     */
+    /** Completion is independent of both reading/listening anchors. */
     fun onSetReadState(book: Book, read: Boolean) {
         libraryAction { applyReadState(book, read) }
     }
@@ -143,13 +156,7 @@ class BookshelfViewModel @Inject constructor(
     }
 
     private suspend fun applyReadState(book: Book, read: Boolean) {
-        if (read) {
-            bookRepository.updateProgress(book.id, progress = 1f, position = book.lastReadPosition)
-        } else {
-            bookRepository.setCompleted(book.id, false)
-            bookRepository.saveListeningPosition(book.id, 0, null)
-            bookRepository.updateProgress(book.id, progress = 0f, position = 0)
-        }
+        bookRepository.setCompleted(book.id, read)
     }
 
     private fun libraryAction(action: suspend () -> Unit) = viewModelScope.launch {

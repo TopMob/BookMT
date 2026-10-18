@@ -32,6 +32,9 @@ interface BookDao {
     @Query("SELECT COUNT(*) FROM books WHERE cover_image_path = :path")
     suspend fun countByCoverPath(path: String): Int
 
+    @Query("UPDATE books SET cover_image_path=:path WHERE id=:bookId AND (cover_image_path IS NULL OR cover_image_path='')")
+    suspend fun setCoverIfMissing(bookId: Long, path: String): Int
+
     @Update
     suspend fun update(book: BookEntity)
 

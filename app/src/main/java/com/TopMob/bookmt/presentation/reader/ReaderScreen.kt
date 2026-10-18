@@ -173,7 +173,7 @@ private fun ReaderScreenContent(onNavigateBack: () -> Unit, viewModel: ReaderVie
 
     val navigationEnabled = state.overlay == ReaderOverlay.NONE && selection == null && editing == null
     val volumeKeysEnabled = state.settings.volumeKeysEnabled && navigationEnabled &&
-        state.tts.status !in setOf(TtsStatus.PLAYING, TtsStatus.PREPARING)
+        state.tts.status !in setOf(TtsStatus.PLAYING, TtsStatus.PREPARING, TtsStatus.PAUSED)
 
     ReaderKeyNavigation(
         volumeEnabled = volumeKeysEnabled,

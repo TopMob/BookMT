@@ -117,7 +117,7 @@ class DiskBookCache(private val root: File) {
     companion object {
         private val live = mutableListOf<java.lang.ref.WeakReference<BookContent>>()
         const val REVISION = 2
-        private const val CACHE_VERSION = 2
+        private const val CACHE_VERSION = 3
         const val BLOCK_SIZE = 24_000
         private const val MAGIC = 0x424D5443
         private fun hash(value: String) = MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).joinToString("") { "%02x".format(it) }

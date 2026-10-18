@@ -3,6 +3,7 @@ package com.TopMob.bookmt.presentation.settings
 import android.graphics.Typeface
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -61,7 +62,7 @@ fun ExtraReadingPreferences(settings: ReaderSettings, update: ((ReaderSettings) 
         }
     }
     Column(Modifier.padding(horizontal = 20.dp)) {
-        TtsPreferences(settings, update)
+        Text(stringResource(R.string.settings_screen_controls), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(vertical = 16.dp))
         PreferenceToggle(stringResource(R.string.reader_book_formatting), settings.bookFormatting) { value -> update { it.copy(bookFormatting = value) } }
         PreferenceToggle(stringResource(R.string.reader_fullscreen), settings.fullScreen) { v -> update { it.copy(fullScreen = v) } }
         PreferenceToggle(stringResource(R.string.reader_volume_keys), settings.volumeKeysEnabled) { v -> update { it.copy(volumeKeysEnabled = v) } }
@@ -69,8 +70,8 @@ fun ExtraReadingPreferences(settings: ReaderSettings, update: ((ReaderSettings) 
         PreferenceToggle(stringResource(R.string.reader_manual_brightness), settings.brightnessOverrideEnabled) { v -> update { it.copy(brightnessOverrideEnabled = v) } }
         if (settings.brightnessOverrideEnabled) Slider(settings.brightnessLevel,
             { v -> update { it.copy(brightnessLevel = v) } }, valueRange = 0.01f..1f)
-        Text(stringResource(R.string.reader_vertical_margin, settings.verticalMarginDp))
-        Slider(settings.verticalMarginDp.toFloat(), { v -> update { it.copy(verticalMarginDp = v.toInt()) } }, valueRange = 0f..64f)
+        CommittedPreferenceSlider(settings.verticalMarginDp.toFloat(), 0f..64f,
+            { stringResource(R.string.reader_vertical_margin, it.toInt()) }) { value -> update { it.copy(verticalMarginDp = value.toInt()) } }
         Text(stringResource(R.string.reader_orientation))
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ReaderOrientation.entries.forEach { orientation ->
@@ -97,9 +98,10 @@ fun ExtraReadingPreferences(settings: ReaderSettings, update: ((ReaderSettings) 
 }
 
 @Composable
-private fun PreferenceToggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+fun PreferenceToggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(value = checked,
+        role = androidx.compose.ui.semantics.Role.Switch, onValueChange = onChange), verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f))
-        Switch(checked, onChange)
+        Switch(checked, null)
     }
 }

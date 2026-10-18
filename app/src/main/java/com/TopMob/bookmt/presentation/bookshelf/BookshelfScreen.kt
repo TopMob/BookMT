@@ -86,259 +86,56 @@ fun BookshelfScreen(
     viewModel: BookshelfViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
+    val progress by viewModel.importProgress.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-
-    // Transient UI state held here so it survives list recomposition.
     var contextMenuBook by remember { mutableStateOf<Book?>(null) }
     var pendingDeleteBook by remember { mutableStateOf<Book?>(null) }
-    var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
-    var searching by remember { mutableStateOf(false) }
+    var selectedIds by androidx.compose.runtime.saveable.rememberSaveable(stateSaver = androidx.compose.runtime.saveable.listSaver<Set<Long>, Long>(save = { it.toList() }, restore = { it.toSet() })) { mutableStateOf<Set<Long>>(emptySet()) }
+    var selectionActive by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var showBatchDelete by remember { mutableStateOf(false) }
     var showTagDialog by remember { mutableStateOf(false) }
-
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
-
-    val selectionMode = selectedIds.isNotEmpty()
-    val selectedBooks = remember(state.books, selectedIds) {
-        if (selectedIds.isEmpty()) emptyList() else state.books.filter { it.id in selectedIds }
+    val selectedBooks = state.books.filter { it.id in selectedIds }
+    fun clearSelection() { selectedIds = emptySet(); selectionActive = false }
+    fun toggleSelection(id: Long) { selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id }
+    LaunchedEffect(state.books, state.isLoading) {
+        if (!state.isLoading) selectedIds = selectedIds.intersect(state.books.map { it.id }.toSet())
     }
-
-    fun toggleSelection(id: Long) {
-        selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
+    BackHandler(selectionActive) { clearSelection() }
+    val importLauncher = rememberLauncherForActivityResult(com.TopMob.bookmt.presentation.util.LocalOpenMultipleDocuments()) { uris -> viewModel.onImportDocuments(uris) }
+    LaunchedEffect(state.errorMessage) {
+        state.errorMessage?.let { snackbarHostState.showSnackbar(it); viewModel.onErrorShown() }
     }
-
-    fun clearSelection() {
-        selectedIds = emptySet()
-    }
-
-    // Hardware back exits selection/search before leaving the screen.
-    BackHandler(enabled = selectionMode) { clearSelection() }
-    BackHandler(enabled = searching && !selectionMode) {
-        searching = false
-        viewModel.onSearchChange("")
-    }
-
-    val importProgress by viewModel.importProgress.collectAsStateWithLifecycle()
-    val importLauncher = rememberLauncherForActivityResult(com.TopMob.bookmt.presentation.util.LocalOpenMultipleDocuments()) { uris ->
-        viewModel.onImportDocuments(uris)
-    }
-    var showLibraryTools by remember { mutableStateOf(false) }
-
-    state.errorMessage?.let { message ->
-        LaunchedEffect(message) {
-            snackbarHostState.showSnackbar(message)
-            viewModel.onErrorShown()
-        }
-    }
-
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet {
-                Text(
-                    text = stringResource(R.string.app_name),
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.headlineMedium
-                )
-                HorizontalDivider()
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Filled.Book, contentDescription = null) },
-                    label = { Text(stringResource(R.string.bookshelf_title)) },
-                    selected = state.query.tags.isEmpty(),
-                    onClick = {
-                        viewModel.onTagFilterChange(emptySet())
-                        scope.launch { drawerState.close() }
-                    }
-                )
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Filled.Favorite, contentDescription = null) },
-                    label = { Text(stringResource(R.string.favorites)) },
-                    selected = state.query.tags.contains("Favorites"),
-                    onClick = {
-                        viewModel.onTagFilterChange(setOf("Favorites"))
-                        scope.launch { drawerState.close() }
-                    }
-                )
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Filled.Bookmark, contentDescription = null) },
-                    label = { Text(stringResource(R.string.bookmarks)) },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        onOpenBookmarks()
-                    }
-                )
-                NavigationDrawerItem(label = { Text(stringResource(R.string.library_tools)) }, selected = false,
-                    onClick = { showLibraryTools = true; scope.launch { drawerState.close() } })
-                HorizontalDivider()
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
-                    label = { Text(stringResource(R.string.action_settings)) },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        onOpenSettings()
-                    }
-                )
-            }
-        }
-    ) {
-        Scaffold(
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            when {
-                selectionMode -> SelectionTopBar(
-                    count = selectedIds.size,
-                    onClose = { clearSelection() },
-                    onMarkRead = {
-                        viewModel.onSetReadStateForBooks(selectedBooks, read = true)
-                        clearSelection()
-                    },
-                    onMarkUnread = {
-                        viewModel.onSetReadStateForBooks(selectedBooks, read = false)
-                        clearSelection()
-                    },
-                    onAddTag = { showTagDialog = true },
-                    onDelete = { showBatchDelete = true },
-                )
-
-                searching -> SearchTopBar(
-                    query = state.query.searchQuery,
-                    onQueryChange = viewModel::onSearchChange,
-                    onClose = {
-                        searching = false
-                        viewModel.onSearchChange("")
-                    },
-                )
-
-                else -> TopAppBar(
-                    title = { Text(stringResource(R.string.bookshelf_title)) },
-                    navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.action_menu))
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { searching = true }) {
-                            Icon(
-                                Icons.Filled.Search,
-                                contentDescription = stringResource(R.string.action_search),
-                            )
-                        }
-                        IconButton(onClick = { showLibraryTools = true }) {
-                            Icon(Icons.Filled.MoreVert, stringResource(R.string.library_tools))
-                        }
-                        SortMenu(onSortSelected = viewModel::onSortOrderChange)
-                        IconButton(onClick = viewModel::onToggleViewMode) {
-                            if (state.viewMode == BookshelfViewMode.GRID) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.ViewList,
-                                    contentDescription = stringResource(R.string.action_list_view),
-                                )
-                            } else {
-                                Icon(
-                                    Icons.Filled.GridView,
-                                    contentDescription = stringResource(R.string.action_grid_view),
-                                )
-                            }
-                        }
-                    },
-                )
-            }
-        },
-        floatingActionButton = {
-            if (!selectionMode) {
-                FloatingActionButton(onClick = { importLauncher.launch(IMPORT_MIME_TYPES) }) {
-                    Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.bookshelf_import))
-                }
-            }
-        },
-    ) { padding ->
-        androidx.compose.foundation.layout.Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            LibraryFilterSummary(state, importProgress, viewModel::onResetFilters)
-            Box(Modifier.weight(1f)) {
-            when {
-                state.isLoading -> com.TopMob.bookmt.presentation.components.ComfortLoadingIndicator(Modifier.align(Alignment.Center))
-                state.isEmpty -> com.TopMob.bookmt.presentation.components.ComfortEmptyState(
-                    title = stringResource(if (state.allBooks.isEmpty()) R.string.comfort_library_title else R.string.comfort_no_matches),
-                    message = stringResource(if (state.allBooks.isEmpty()) R.string.comfort_library_hint else R.string.comfort_no_matches_hint),
-                    modifier = Modifier.align(Alignment.Center),
-                    actionLabel = stringResource(if (state.allBooks.isEmpty()) R.string.bookshelf_import else R.string.library_reset_filters),
-                    onAction = { if (state.allBooks.isEmpty()) importLauncher.launch(IMPORT_MIME_TYPES) else viewModel.onResetFilters() },
-                )
-
-                state.viewMode == BookshelfViewMode.GRID -> LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 120.dp),
-                    contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 180.dp),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    items(items = state.books, key = { it.id }) { book ->
-                        BookGridItem(
-                            book = book,
-                            selected = book.id in selectedIds,
-                            onClick = {
-                                if (selectionMode) toggleSelection(book.id) else onBookClick(book.id)
-                            },
-                            onLongClick = {
-                                if (selectionMode) toggleSelection(book.id) else contextMenuBook = book
-                            },
-                        )
-                    }
-                }
-
-                else -> LazyColumn(
-                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 180.dp),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    items(items = state.books, key = { it.id }) { book ->
-                        BookListItem(
-                            book = book,
-                            selected = book.id in selectedIds,
-                            onClick = {
-                                if (selectionMode) toggleSelection(book.id) else onBookClick(book.id)
-                            },
-                            onLongClick = {
-                                if (selectionMode) toggleSelection(book.id) else contextMenuBook = book
-                            },
-                            modifier = Modifier.padding(vertical = 6.dp),
-                        )
-                    }
-                }
-            }
-
-            // Continue Reading Banner/Button
-            val continueReadingBook = state.continueReadingBook
-            if (continueReadingBook != null && !selectionMode) {
-                ExtendedFloatingActionButton(
-                    onClick = { onBookClick(continueReadingBook.id) },
-                    icon = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
-                    text = { Text(stringResource(R.string.continue_reading)) },
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp)
-                )
-            }
-        }
-    }
-    }
-
-    }
-    if (showLibraryTools) LibraryToolsDialog(state, viewModel) { showLibraryTools = false }
+    LibraryBrowser(state, LibraryCallbacks(
+        open = { if (selectionActive) toggleSelection(it.id) else onBookClick(it.id) },
+        context = { if (selectionActive) toggleSelection(it.id) else contextMenuBook = it },
+        add = { importLauncher.launch(IMPORT_MIME_TYPES) }, settings = onOpenSettings, marks = onOpenBookmarks,
+        search = viewModel::onSearchChange, filters = viewModel::onApplyFilters, reset = viewModel::onResetFilters,
+        sort = viewModel::onSortChange, view = viewModel::onSetViewMode,
+        select = { selectionActive = true },
+    ), snackbarHostState, progress, selectedIds, selectionActive, selectionBar = {
+        SelectionTopBar(selectedIds.size, ::clearSelection,
+            onMarkRead = { viewModel.onSetReadStateForBooks(selectedBooks, true); clearSelection() },
+            onMarkUnread = { viewModel.onSetReadStateForBooks(selectedBooks, false); clearSelection() },
+            onAddTag = { showTagDialog = true }, onDelete = { showBatchDelete = true },
+            onSelectAll = { selectedIds = state.books.map { it.id }.toSet() }, available = state.books.size)
+    })
 
     // Long-press context menu (single book).
     contextMenuBook?.let { book ->
         BookContextSheet(
             book = book,
+            onRead = { contextMenuBook = null; onBookClick(book.id) },
             onFavorite = { viewModel.onToggleFavorite(book); contextMenuBook = null },
             onOpenDetails = {
                 contextMenuBook = null
                 onOpenDetails(book.id)
             },
             onToggleRead = {
-                viewModel.onSetReadState(book, read = book.progress < 1f)
+                viewModel.onSetReadState(book, read = !book.isFinished)
                 contextMenuBook = null
             },
             onStartSelection = {
+                selectionActive = true
                 selectedIds = setOf(book.id)
                 contextMenuBook = null
             },
@@ -397,31 +194,6 @@ fun BookshelfScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SearchTopBar(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onClose: () -> Unit,
-) {
-    TopAppBar(
-        navigationIcon = {
-            IconButton(onClick = onClose) {
-                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_close))
-            }
-        },
-        title = {
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                placeholder = { Text(stringResource(R.string.bookshelf_search_hint)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
 private fun SelectionTopBar(
     count: Int,
     onClose: () -> Unit,
@@ -429,6 +201,7 @@ private fun SelectionTopBar(
     onMarkUnread: () -> Unit,
     onAddTag: () -> Unit,
     onDelete: () -> Unit,
+    onSelectAll: () -> Unit, available: Int,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     TopAppBar(
@@ -439,23 +212,25 @@ private fun SelectionTopBar(
         },
         title = { Text(stringResource(R.string.selection_count, count)) },
         actions = {
-            IconButton(onClick = onDelete) {
+            IconButton(onClick = onDelete, enabled = count > 0) {
                 Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.book_menu_delete))
             }
             IconButton(onClick = { menuExpanded = true }) {
                 Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.action_more))
             }
             DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                DropdownMenuItem(text = { Text(stringResource(R.string.library_select_all, available)) },
+                    onClick = { menuExpanded = false; onSelectAll() })
                 DropdownMenuItem(
-                    text = { Text(stringResource(R.string.book_menu_mark_read)) },
+                    text = { Text(stringResource(R.string.book_menu_mark_read)) }, enabled = count > 0,
                     onClick = { menuExpanded = false; onMarkRead() },
                 )
                 DropdownMenuItem(
-                    text = { Text(stringResource(R.string.book_menu_mark_unread)) },
+                    text = { Text(stringResource(R.string.library_keep_position_unread)) }, enabled = count > 0,
                     onClick = { menuExpanded = false; onMarkUnread() },
                 )
                 DropdownMenuItem(
-                    text = { Text(stringResource(R.string.book_menu_add_tag)) },
+                    text = { Text(stringResource(R.string.book_menu_add_tag)) }, enabled = count > 0,
                     onClick = { menuExpanded = false; onAddTag() },
                 )
             }
@@ -487,33 +262,6 @@ private fun AddTagDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
         },
     )
 }
-
-@Composable
-private fun SortMenu(onSortSelected: (BookSortOrder) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    IconButton(onClick = { expanded = true }) {
-        Icon(Icons.Filled.Sort, contentDescription = stringResource(R.string.action_sort))
-    }
-    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-        SORT_OPTIONS.forEach { (order, labelRes) ->
-            DropdownMenuItem(
-                text = { Text(stringResource(labelRes)) },
-                onClick = {
-                    onSortSelected(order)
-                    expanded = false
-                },
-            )
-        }
-    }
-}
-
-private val SORT_OPTIONS = listOf(
-    BookSortOrder.RECENTLY_ADDED to R.string.sort_recently_added,
-    BookSortOrder.RECENTLY_READ to R.string.sort_recently_read,
-    BookSortOrder.TITLE to R.string.sort_title,
-    BookSortOrder.AUTHOR to R.string.sort_author,
-    BookSortOrder.PROGRESS to R.string.sort_progress,
-)
 
 private val IMPORT_MIME_TYPES = arrayOf(
     "text/plain",

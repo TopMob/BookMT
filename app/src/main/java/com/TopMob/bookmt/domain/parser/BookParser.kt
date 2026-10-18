@@ -62,13 +62,14 @@ data class BookMetadata(
     val title: String,
     val author: String? = null,
     val coverImageBytes: ByteArray? = null,
+    val description: String? = null,
 ) {
     // ByteArray needs structural equality overrides to behave correctly in data-class comparisons.
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is BookMetadata) return false
         return title == other.title &&
-            author == other.author &&
+            author == other.author && description == other.description &&
             coverImageBytes.contentEqualsNullable(other.coverImageBytes)
     }
 
@@ -76,6 +77,7 @@ data class BookMetadata(
         var result = title.hashCode()
         result = 31 * result + (author?.hashCode() ?: 0)
         result = 31 * result + (coverImageBytes?.contentHashCode() ?: 0)
+        result = 31 * result + (description?.hashCode() ?: 0)
         return result
     }
 }

@@ -1,5 +1,12 @@
 package com.TopMob.bookmt.presentation.settings
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.material.icons.filled.*
+import com.TopMob.bookmt.presentation.util.formatDuration
+import com.TopMob.bookmt.presentation.util.formatFileSize
 import android.content.Context
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -68,9 +75,19 @@ import java.io.File
 fun AppSettingsScreen(
     onNavigateBack: () -> Unit,
     viewModel: AppSettingsViewModel = hiltViewModel(),
+    libraryModel: LibrarySettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val backupBusy by viewModel.backupBusy.collectAsStateWithLifecycle()
+    val summary by libraryModel.summary.collectAsStateWithLifecycle()
+    val progress by libraryModel.progress.collectAsStateWithLifecycle()
+    val libraryError by libraryModel.error.collectAsStateWithLifecycle()
+    var pageName by rememberSaveable { mutableStateOf(SettingsPage.HOME.name) }
+    var restoreUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var license by rememberSaveable { mutableStateOf(false) }
+    val page = SettingsPage.valueOf(pageName)
+    val holder = rememberSaveableStateHolder()
+    BackHandler(page != SettingsPage.HOME) { pageName = SettingsPage.HOME.name }
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -84,7 +101,7 @@ fun AppSettingsScreen(
     ) { uri -> if (uri != null) viewModel.onExportBackup(uri) }
     val importLauncher = rememberLauncherForActivityResult(
         com.TopMob.bookmt.presentation.util.LocalOpenDocument(),
-    ) { uri -> if (uri != null) viewModel.onImportBackup(uri) }
+    ) { uri -> if (uri != null) restoreUri = uri.toString() }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -97,79 +114,73 @@ fun AppSettingsScreen(
         }
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.settings_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.action_back),
-                        )
+    LaunchedEffect(libraryError) {
+        libraryError?.let { snackbarHostState.showSnackbar(it); libraryModel.dismissError() }
+    }
+    if (restoreUri != null) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { restoreUri = null }, title = { Text(stringResource(R.string.settings_restore_confirm)) },
+        text = { Text(stringResource(R.string.settings_restore_explanation)) },
+        confirmButton = { TextButton(onClick = { val uri = restoreUri; restoreUri = null
+            uri?.let { viewModel.onImportBackup(android.net.Uri.parse(it)) } }) { Text(stringResource(R.string.settings_restore_action)) } },
+        dismissButton = { TextButton(onClick = { restoreUri = null }) { Text(stringResource(R.string.action_cancel)) } })
+    if (license) TtsLicenseDialog({ license = false }) { license = false }
+    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }, topBar = {
+        TopAppBar(title = { Text(stringResource(page.title)) }, navigationIcon = {
+            IconButton(onClick = { if (page == SettingsPage.HOME) onNavigateBack() else pageName = SettingsPage.HOME.name }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
+            }
+        })
+    }) { padding ->
+        holder.SaveableStateProvider(pageName) {
+            Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(vertical = 12.dp)) {
+                if (!state.ready) com.TopMob.bookmt.presentation.components.ComfortLoadingIndicator(Modifier.align(Alignment.CenterHorizontally))
+                else when (page) {
+                    SettingsPage.HOME -> SettingsHome({ pageName = it.name })
+                    SettingsPage.APPEARANCE -> AppearancePreferences(state.readerSettings, viewModel::onUpdateReaderSettings)
+                    SettingsPage.READING -> ReadingPreferences(state.readerSettings, viewModel::onUpdateReaderSettings)
+                    SettingsPage.SPEECH -> Column(Modifier.padding(horizontal = 20.dp)) { TtsPreferences(state.readerSettings, viewModel::onUpdateReaderSettings) }
+                    SettingsPage.LANGUAGE -> Column(Modifier.selectableGroup()) {
+                        AppLanguage.entries.forEach { language -> LanguageRow(language, language == state.language) { viewModel.onLanguageChange(language) } }
                     }
-                },
-            )
-        },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState()),
-        ) {
-            Text(
-                text = stringResource(R.string.settings_language),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 4.dp),
-            )
-            Column(Modifier.selectableGroup()) {
-                AppLanguage.entries.forEach { language ->
-                    LanguageRow(
-                        language = language,
-                        selected = language == state.language,
-                        onSelect = { viewModel.onLanguageChange(language) },
-                    )
+                    SettingsPage.FILES -> {
+                        Text(stringResource(R.string.settings_backup_desc), style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(20.dp))
+                        Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedButton(enabled = !backupBusy, onClick = { exportLauncher.launch(DEFAULT_BACKUP_NAME) }) { Text(stringResource(R.string.backup_export)) }
+                            OutlinedButton(enabled = !backupBusy, onClick = { importLauncher.launch(BACKUP_MIME_TYPES) }) { Text(stringResource(R.string.backup_import)) }
+                            if (backupBusy) com.TopMob.bookmt.presentation.components.ComfortLoadingIndicator()
+                        }
+                        HorizontalDivider(Modifier.padding(vertical = 16.dp))
+                        SettingsNavigationRow(stringResource(R.string.offline_prepare_library), stringResource(R.string.offline_prepare_hint),
+                            Icons.Filled.Folder, enabled = summary?.count?.let { it > 0 } == true && progress == null,
+                            onClick = libraryModel::prepareOffline)
+                        progress?.let { Text(stringResource(R.string.library_import_progress, it.completed, it.total), Modifier.padding(horizontal = 20.dp)) }
+                        SettingsNavigationRow(stringResource(R.string.library_statistics), "", Icons.Filled.BarChart, { pageName = SettingsPage.STATISTICS.name })
+                    }
+                    SettingsPage.STATISTICS -> LibraryStatistics(summary)
+                    SettingsPage.ABOUT -> Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text("BookMT", style = MaterialTheme.typography.titleLarge)
+                        Text(stringResource(R.string.settings_version, com.TopMob.bookmt.BuildConfig.VERSION_NAME))
+                        Text(stringResource(R.string.settings_offline_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        TextButton(onClick = { license = true }) { Text(stringResource(R.string.tts_license)) }
+                    }
                 }
             }
+        }
+    }
+}
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-            val rs = state.readerSettings
-            val onUpdate = viewModel::onUpdateReaderSettings
-
-            AppearancePreferences(rs, onUpdate)
+@Composable
+private fun LibraryStatistics(value: LibrarySummary?) {
+    if (value == null) { com.TopMob.bookmt.presentation.components.ComfortLoadingIndicator(); return }
+    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(stringResource(R.string.library_stats_books, value.count, value.finished, value.reading))
+        Text(stringResource(R.string.library_stats_time, value.time / 3600000, value.time / 60000 % 60))
+        Text(formatFileSize(value.size), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        value.top.forEach { book ->
             HorizontalDivider()
-            ReadingPreferences(rs, onUpdate)
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-            Text(
-                text = stringResource(R.string.settings_backup),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 20.dp, top = 8.dp, bottom = 4.dp),
-            )
-            Text(
-                text = stringResource(R.string.settings_backup_desc),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                OutlinedButton(enabled = !backupBusy, onClick = { exportLauncher.launch(DEFAULT_BACKUP_NAME) }) {
-                    Text(stringResource(R.string.backup_export))
-                }
-                OutlinedButton(enabled = !backupBusy, onClick = { importLauncher.launch(BACKUP_MIME_TYPES) }) {
-                    Text(stringResource(R.string.backup_import))
-                }
-            }
-            if (backupBusy) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().padding(20.dp))
+            Text(book.title, style = MaterialTheme.typography.titleSmall)
+            Text(formatDuration(book.totalReadingTimeMs), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -268,9 +279,9 @@ private fun ReaderTheme.label(): String = when (this) {
 @Composable
 private fun ReaderFontFamily.label(): String = when (this) {
     ReaderFontFamily.SYSTEM -> stringResource(R.string.settings_font_system)
-    ReaderFontFamily.SERIF -> "Serif"
-    ReaderFontFamily.SANS_SERIF -> "Sans Serif"
-    ReaderFontFamily.MONOSPACE -> "Monospace"
+    ReaderFontFamily.SERIF -> stringResource(R.string.settings_serif)
+    ReaderFontFamily.SANS_SERIF -> stringResource(R.string.settings_sans)
+    ReaderFontFamily.MONOSPACE -> stringResource(R.string.settings_mono)
 }
 
 @Composable
@@ -282,62 +293,23 @@ private fun ReaderTextAlignment.label(): String = when (this) {
 
 @Composable
 fun ReadingPreferences(rs: ReaderSettings, onUpdate: ((ReaderSettings) -> ReaderSettings) -> Unit) {
-            SectionLabel(stringResource(R.string.settings_reading_mode))
-            ChipRow(
-                options = ReadingMode.entries,
-                selected = rs.readingMode,
-                label = { stringResource(if (it == ReadingMode.PAGED) R.string.settings_mode_paged else R.string.settings_mode_scroll) },
-                onSelect = { mode -> onUpdate { it.copy(readingMode = mode) } },
-            )
-
-            ReaderThemePreference(rs, onUpdate)
-
-            SectionLabel(stringResource(R.string.settings_font_size, rs.fontSizeSp.toInt()))
-            Slider(
-                value = rs.fontSizeSp,
-                onValueChange = { v -> onUpdate { it.copy(fontSizeSp = v) } },
-                valueRange = ReaderSettings.MIN_FONT_SIZE_SP..ReaderSettings.MAX_FONT_SIZE_SP,
-                modifier = Modifier.padding(horizontal = 20.dp)
-            )
-
-            SectionLabel(stringResource(R.string.settings_line_spacing, "%.1f".format(rs.lineSpacingMultiplier)))
-            Slider(
-                value = rs.lineSpacingMultiplier,
-                onValueChange = { v -> onUpdate { it.copy(lineSpacingMultiplier = v) } },
-                valueRange = ReaderSettings.MIN_LINE_SPACING..ReaderSettings.MAX_LINE_SPACING,
-                modifier = Modifier.padding(horizontal = 20.dp)
-            )
-
-            SectionLabel(stringResource(R.string.settings_margins, rs.horizontalMarginDp))
-            Slider(
-                value = rs.horizontalMarginDp.toFloat(),
-                onValueChange = { v -> onUpdate { it.copy(horizontalMarginDp = v.toInt()) } },
-                valueRange = 0f..64f,
-                modifier = Modifier.padding(horizontal = 20.dp)
-            )
-
-            SectionLabel(stringResource(R.string.settings_font))
-            ChipRow(
-                options = ReaderFontFamily.entries,
-                selected = rs.fontFamily,
-                label = { it.label() },
-                onSelect = { family -> onUpdate { it.copy(fontFamily = family) } },
-            )
-
-            SectionLabel(stringResource(R.string.settings_alignment))
-            ChipRow(
-                options = ReaderTextAlignment.entries,
-                selected = rs.textAlignment,
-                label = { it.label() },
-                onSelect = { align -> onUpdate { it.copy(textAlignment = align) } },
-            )
-
-            SectionLabel(stringResource(R.string.reader_show_slider))
-            ToggleRow(
-                label = stringResource(R.string.reader_show_slider_desc),
-                checked = rs.showProgressSlider,
-                onCheckedChange = { on -> onUpdate { it.copy(showProgressSlider = on) } },
-            )
-
+    ComfortChoiceRow(stringResource(R.string.settings_reading_mode), rs.readingMode, ReadingMode.entries,
+        { stringResource(if (it == ReadingMode.PAGED) R.string.settings_mode_paged else R.string.settings_mode_scroll) },
+        { mode -> onUpdate { it.copy(readingMode = mode) } })
+    Column(Modifier.padding(horizontal = 20.dp)) {
+        CommittedPreferenceSlider(rs.fontSizeSp, ReaderSettings.MIN_FONT_SIZE_SP..ReaderSettings.MAX_FONT_SIZE_SP,
+            { stringResource(R.string.settings_font_size, it.toInt()) }) { value -> onUpdate { it.copy(fontSizeSp = value) } }
+        CommittedPreferenceSlider(rs.lineSpacingMultiplier, ReaderSettings.MIN_LINE_SPACING..ReaderSettings.MAX_LINE_SPACING,
+            { stringResource(R.string.settings_line_spacing, "%.1f".format(it)) }) { value -> onUpdate { it.copy(lineSpacingMultiplier = value) } }
+        CommittedPreferenceSlider(rs.horizontalMarginDp.toFloat(), 0f..64f,
+            { stringResource(R.string.settings_margins, it.toInt()) }) { value -> onUpdate { it.copy(horizontalMarginDp = value.toInt()) } }
+    }
+    ComfortChoiceRow(stringResource(R.string.settings_font), rs.fontFamily, ReaderFontFamily.entries,
+        { it.label() }, { family -> onUpdate { it.copy(fontFamily = family, customFontPath = null) } })
+    ComfortChoiceRow(stringResource(R.string.settings_alignment), rs.textAlignment, ReaderTextAlignment.entries,
+        { it.label() }, { align -> onUpdate { it.copy(textAlignment = align) } })
+    Column(Modifier.padding(horizontal = 20.dp)) {
+        PreferenceToggle(stringResource(R.string.reader_show_slider_desc), rs.showProgressSlider) { value -> onUpdate { it.copy(showProgressSlider = value) } }
+    }
     ExtraReadingPreferences(rs, onUpdate)
 }

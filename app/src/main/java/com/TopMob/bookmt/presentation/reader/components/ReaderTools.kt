@@ -32,14 +32,8 @@ data class ReaderSelection(val page: ReaderPage, val range: TextRange)
 @Composable
 fun ReaderToolDialogs(state: ReaderUiState, viewModel: ReaderViewModel, onGoToPage: (Int) -> Unit) {
     when (state.overlay) {
-        ReaderOverlay.SETTINGS -> AlertDialog(
-            onDismissRequest = viewModel::onDismissOverlay,
-            title = { Text(stringResource(R.string.settings_title)) },
-            text = { Column(Modifier.verticalScroll(rememberScrollState())) {
-                ReadingPreferences(state.settings, viewModel::onUpdateSettings)
-            } },
-            confirmButton = { TextButton(onClick = viewModel::onDismissOverlay) { Text(stringResource(R.string.action_close)) } },
-        )
+        ReaderOverlay.SETTINGS -> com.TopMob.bookmt.presentation.settings.ReaderSettingsDialog(
+            state.settings, viewModel::onUpdateSettings, viewModel::onDismissOverlay)
         ReaderOverlay.SEARCH -> AlertDialog(
             onDismissRequest = viewModel::onDismissOverlay,
             title = { Text(stringResource(R.string.reader_search_book)) },

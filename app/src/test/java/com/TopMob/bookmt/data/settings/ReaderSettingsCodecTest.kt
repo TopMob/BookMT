@@ -11,7 +11,7 @@ class ReaderSettingsCodecTest {
     @Test fun `updated installation with no saved settings retains old reader defaults`() {
         val migrated = ReaderSettingsCodec.migrate(emptyPreferences(), legacyInstall = true).toReaderSettings()
         assertEquals(AppThemeMode.DAY, migrated.appearance.appTheme)
-        assertFalse(migrated.appearance.readerFollowsApp)
+        assertTrue(migrated.appearance.readerFollowsApp)
         assertTrue(migrated.volumeKeysEnabled)
     }
 
@@ -48,7 +48,7 @@ class ReaderSettingsCodecTest {
         val after = old.toReaderSettings()
         assertEquals(before.copy(appearance = before.appearance.copy(motion = MotionMode.OFF)), after)
         assertEquals("retain-me", old[stringPreferencesKey("unknown_future_key")])
-        assertEquals(1, old[intPreferencesKey("comfort_ui_version")])
+        assertEquals(2, old[intPreferencesKey("comfort_ui_version")])
         assertEquals(ReaderTheme.SEPIA, after.resolvedTheme(systemDark = true))
     }
 
@@ -76,6 +76,30 @@ class ReaderSettingsCodecTest {
         assertEquals(ReaderTheme.NIGHT, inherited.resolvedTheme(false))
         assertEquals(ReaderTheme.SEPIA, inherited.theme)
         assertEquals(ReaderTheme.SEPIA, inherited.appearance.lastLightTheme)
+    }
+
+
+    @Test fun `version one explicit reader palette becomes the single app palette without losing settings`() {
+        val old = mutablePreferencesOf(intPreferencesKey("comfort_ui_version") to 1,
+            stringPreferencesKey("app_theme") to "NIGHT", stringPreferencesKey("theme") to "SEPIA",
+            booleanPreferencesKey("reader_follows_app") to false, floatPreferencesKey("font_size_sp") to 29f,
+            stringPreferencesKey("unknown_future_key") to "keep")
+        val migrated = ReaderSettingsCodec.migrate(old, legacyInstall = true)
+        val settings = migrated.toReaderSettings()
+        assertEquals(AppThemeMode.SEPIA, settings.appearance.appTheme)
+        assertTrue(settings.appearance.readerFollowsApp)
+        assertEquals(ReaderTheme.SEPIA, settings.resolvedTheme(true))
+        assertEquals(29f, settings.fontSizeSp)
+        assertEquals("keep", migrated[stringPreferencesKey("unknown_future_key")])
+        assertEquals(migrated, ReaderSettingsCodec.migrate(migrated, legacyInstall = true))
+    }
+
+    @Test fun `quick reader theme changes also change application palette`() {
+        val selected = ReaderSettings().withReaderTheme(ReaderTheme.AMOLED_BLACK)
+        assertEquals(AppThemeMode.BLACK, selected.appearance.appTheme)
+        assertTrue(selected.appearance.readerFollowsApp)
+        assertEquals(ReaderTheme.AMOLED_BLACK, selected.resolvedTheme(false))
+        assertEquals(AppThemeMode.SYSTEM, selected.withAppTheme(AppThemeMode.SYSTEM).appearance.appTheme)
     }
 
     @Test fun `invalid saved enum names and invalid light dark pairs are sanitized`() {

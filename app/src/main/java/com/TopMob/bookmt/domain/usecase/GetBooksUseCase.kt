@@ -24,27 +24,9 @@ class GetBooksUseCase @Inject constructor(
         repository.observeBooks().map { books -> filter(books, query) }.flowOn(dispatchers.default)
 
     fun filter(books: List<Book>, query: BookQuery): List<Book> {
-        val filtered = books.filter { book ->
-            val matchesSearch = query.searchQuery.isBlank() ||
-                book.title.contains(query.searchQuery, ignoreCase = true) ||
-                (book.author?.contains(query.searchQuery, ignoreCase = true) == true)
+        val filtered = books.filter { it.matchesQuery(query) }
 
-            val matchesTags = query.tags.isEmpty() || query.tags.all { it in book.tags }
-
-            val matchesProgress = !query.onlyInProgress ||
-                (book.progress > 0f && !book.isFinished)
-
-            val matchesStatus = when (query.status) {
-                com.TopMob.bookmt.domain.model.LibraryStatus.ALL -> true
-                com.TopMob.bookmt.domain.model.LibraryStatus.UNREAD -> book.progress <= 0f && !book.isFinished
-                com.TopMob.bookmt.domain.model.LibraryStatus.READING -> book.progress > 0f && !book.isFinished
-                com.TopMob.bookmt.domain.model.LibraryStatus.FINISHED -> book.isFinished
-            }
-            matchesSearch && matchesTags && matchesProgress && matchesStatus &&
-                (query.format == null || query.format == book.format)
-        }
-
-        val sorted = filtered.sortedWith(comparatorFor(query.sortOrder))
+        val sorted = filtered.sortedWith(comparatorFor(query.sortOrder).thenBy { it.id })
         return if (query.ascending) sorted else sorted.asReversed()
     }
 
@@ -55,4 +37,26 @@ class GetBooksUseCase @Inject constructor(
         BookSortOrder.AUTHOR -> compareBy(String.CASE_INSENSITIVE_ORDER) { it.author ?: "" }
         BookSortOrder.PROGRESS -> compareBy { it.progress }
     }
+}
+
+/** Shared by committed results and the local filter preview count. */
+fun Book.matchesQuery(query: BookQuery): Boolean {
+    val book = this
+    val matchesSearch = query.searchQuery.isBlank() ||
+        book.title.contains(query.searchQuery, ignoreCase = true) ||
+        (book.author?.contains(query.searchQuery, ignoreCase = true) == true)
+
+    val matchesTags = query.tags.isEmpty() || query.tags.all { it in book.tags }
+
+    val matchesProgress = !query.onlyInProgress ||
+        (book.progress > 0f && !book.isFinished)
+
+    val matchesStatus = when (query.status) {
+        com.TopMob.bookmt.domain.model.LibraryStatus.ALL -> true
+        com.TopMob.bookmt.domain.model.LibraryStatus.UNREAD -> book.progress <= 0f && !book.isFinished
+        com.TopMob.bookmt.domain.model.LibraryStatus.READING -> book.progress > 0f && !book.isFinished
+        com.TopMob.bookmt.domain.model.LibraryStatus.FINISHED -> book.isFinished
+    }
+    return matchesSearch && matchesTags && matchesProgress && matchesStatus &&
+        (query.format == null || query.format == book.format)
 }

@@ -35,13 +35,7 @@ class Fb2BookParser(
             BookFormat.fromMimeType(mimeType) == BookFormat.FB2
 
     override suspend fun parseMetadata(input: InputStream, fileName: String): BookMetadata =
-        withContext(dispatchers.io) {
-            val parsed = parseInternal(input, metadataOnly = true)
-            BookMetadata(
-                title = parsed.title.ifBlank { fileName.substringBeforeLast('.') },
-                author = parsed.author,
-            )
-        }
+        withContext(dispatchers.io) { Fb2MetadataReader.parse(input, fileName) }
 
     override suspend fun parse(input: InputStream, fileName: String): BookContent =
         withContext(dispatchers.io) {

@@ -16,14 +16,14 @@ object AppearanceLaunchCache {
         val names = mapOf("app" to value.appTheme.name, "motion" to value.motion.name,
             "light" to value.lastLightTheme.name, "dark" to value.lastDarkTheme.name,
             "inherit" to value.readerFollowsApp.toString())
-        if (names.any { (key, name) -> prefs.getString(key, null) != name }) {
-            prefs.edit().also { editor -> names.forEach { (key, name) -> editor.putString(key, name) } }.apply()
+        if (prefs.getInt("ui_version", 0) != 2 || names.any { (key, name) -> prefs.getString(key, null) != name }) {
+            prefs.edit().putInt("ui_version", 2).also { editor -> names.forEach { (key, name) -> editor.putString(key, name) } }.apply()
         }
     }
 
     fun read(context: Context): AppearanceSettings {
         val prefs = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
-        val app = prefs.getString("app", null)
+        val app = if (prefs.getInt("ui_version", 0) == 2) prefs.getString("app", null) else null
         if (app != null) return AppearanceSettings(
             appTheme = AppThemeMode.entries.firstOrNull { it.name == app } ?: AppThemeMode.SYSTEM,
             motion = MotionMode.entries.firstOrNull { it.name == prefs.getString("motion", null) } ?: MotionMode.SYSTEM,

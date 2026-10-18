@@ -6,19 +6,18 @@ Four built-in palettes: Day / День, Sepia / Сепия, Night / Ночь, Bl
 `theme-tokens.json` specifies opaque sRGB colors as `#RRGGBB`. Alpha is explicit
 only in the state-layer rules below; do not reinterpret hex as ARGB.
 
-New installations: application appearance follows Android light/dark selection
-(Day/Night). Reader inherits application appearance until explicitly changed.
-Existing installations: preserve reader theme and all typography preferences;
-initialize application appearance from the saved reader theme once when migrating.
-Do not reset existing DAY to NIGHT merely because defaults changed. Persist the
-resolved appearance for the launch window so startup does not briefly show white.
+Owner revision, 2026-10-18: one application-wide palette, including the reader.
+There is no independent reader override. New installs follow Android Day/Night;
+manual choices are Day, Sepia, Night, Black. All dialogs, loading surfaces, reader
+text and library resolve the same selection. Day/Night/Black accents are neutral
+graphite; Sepia retains its restrained warm brown. Exact colors remain in JSON.
 
-Reader override is optional and clearly labeled “Оформление этой читалки” (global
-reader preference, not per-book). All overlays opened inside the reader inherit
-its resolved palette, including text fields, selection UI, loading and errors.
-Outside the reader use app appearance. Reader → library changes palette atomically
-when the destination becomes visible; do not fade through a white surface.
-Changing Android day/night mode must not change an explicitly selected reader theme.
+Migration version 2: preserve the previously explicit reader palette as the unified
+choice; otherwise preserve the app selection, including Follow system. Retain all
+font, margin, voice and position data and unknown preference keys. Legacy override
+fields may remain in the backup codec for compatibility, never as duplicate UI.
+Cache the selected launch appearance after migration. Changing system day/night
+must not affect an explicitly selected preset.
 
 Remember a preferred light palette (Day initially) and dark palette (Night initially).
 Quick toggle switches that pair; choosing Sepia or Black updates the respective

@@ -2,6 +2,11 @@
 
 Status: **target specification; implementation in progress**. Date: 2026-10-18.
 First increment: [P0/P1 implementation report](IMPLEMENTATION_2026-10-18.md).
+Current increment: [library/settings and page navigation](IMPLEMENTATION_P2_2026-10-18.md).
+
+Latest owner revision (takes precedence over older reports): one shared app/reader
+theme, neutral graphite accents in Day/Night/Black, and forward screen turns starting
+at the first not-fully-visible line. Separate reader theme controls are removed.
 Inspected baseline: `192239150dc1ea89014b97fe35d0b2d8e6a8cf88`.
 Audience: the implementation agent and the owner. Product decisions below come from
 the owner's instructions in this conversation. They supersede conflicting UX proposals
@@ -112,7 +117,7 @@ Paths below are relative to `app/src/main/java/com/TopMob/bookmt/`.
 
 ```text
 Read AGENTS.md and docs/ux/README.md, then the linked specifications. Implement
-P0 and P1 only first; preserve existing reader positions, user preferences and
+the next unfinished, scoped increment; preserve existing reader positions, user preferences and
 offline behavior. Treat everything in docs/ux as a target specification, not
 implemented functionality. Inspect current HEAD before changes. Follow the
 documented colors/motion/state contracts, validate the appropriate scenarios,

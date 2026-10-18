@@ -77,7 +77,14 @@ At first/last page no bounce, error sound or redundant popup. Disabled explicit
 previous/next actions expose state. Reaching last page may retain existing finished
 book bookkeeping; do not force return to library or launch another title. User may
 change read status in Details. Scroll uses native inertial behavior and no custom
-overscroll stretch of the book text. Page-step scroll retains one line overlap.
+overscroll stretch of the book text. Owner revision, 2026-10-18: forward page-step scroll starts at the first line
+that was not completely visible above the bottom reading margin. Compute from
+actual TextLayoutResult line bottoms and LazyList item offsets, never a fixed
+percentage or dp distance. The target line starts at the top reading margin.
+If every laid-out line fits, use the next text item. Oversized inline content must
+still allow progress; backward page steps align their top to a complete line.
+Buttons, tap paging and opted-in volume paging use the same screen-step action.
+Keep a bounded queue for rapid presses. At the end, normal scroll clamping applies.
 Manual touch interrupts programmatic scroll; long jumps use M18.
 
 Hardware keyboard: PageUp/PageDown page step; arrows line step in scroll; Escape

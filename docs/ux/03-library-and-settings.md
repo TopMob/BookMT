@@ -209,13 +209,12 @@ excludes book text and private annotations.
 
 ## S02 — Appearance
 
-Application palette: Follow system, Day, Sepia, Night, Black; static preview tiles
-and selection check. Reader palette: Same as app or explicit preset. Custom palette
+One shared palette: Follow system, Day, Sepia, Night, Black; selection check.
+The same choice applies to library, reader and all settings; no reader override. Custom palette
 editor is a later feature from document 01. Motion mode and optional haptics here.
 Reader font/text settings are reached by “Текст книги” and share R08's controls.
 Theme changes M15; current screen changes with choice, no confirmation for presets.
-App palette and reader override meaning explained in one line, no ambiguous two
-unlabeled theme settings. Reset appearance affects this category only and shows
+Expose exactly one theme choice in Appearance. Reader shortcuts edit that same setting. Reset appearance affects this category only and shows
 which values reset; it cannot erase typography or book data.
 
 ## S03 — Reading and controls

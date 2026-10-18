@@ -37,6 +37,8 @@ import com.TopMob.bookmt.domain.model.*
 import com.TopMob.bookmt.presentation.reader.*
 import com.TopMob.bookmt.presentation.theme.ReaderColors
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import coil.compose.AsyncImage
 import java.io.File
@@ -223,61 +225,73 @@ fun ReaderContent(
                 }
             }
 
-            val scrollController = remember(list, scope, motion) {
-                object {
-                    private val lock = Any()
-                    private var pendingDelta = 0f
-                    private var isRunning = false
-
-                    fun scroll(delta: Float, maxPending: Float) {
-                        synchronized(lock) {
-                            pendingDelta = (pendingDelta + delta).coerceIn(-maxPending, maxPending)
-                            if (isRunning) return
-                            isRunning = true
+            val scrollTurns = remember { Channel<Int>(3, BufferOverflow.DROP_OLDEST) }
+            LaunchedEffect(list, displayedPages, ready) {
+                if (!ready || mode != ReadingMode.SCROLL) {
+                    while (scrollTurns.tryReceive().isSuccess) { /* discard stale navigation */ }
+                    return@LaunchedEffect
+                }
+                suspend fun awaitVisibleLayouts() {
+                    snapshotFlow {
+                        list.layoutInfo.visibleItemsInfo.all { item ->
+                            displayedPages.getOrNull(item.index)?.let { layouts[it.startOffset] != null } == true
                         }
-                        scope.launch {
-                            try {
-                                while (true) {
-                                    val step: Float
-                                    synchronized(lock) {
-                                        step = pendingDelta
-                                        pendingDelta = 0f
-                                    }
-                                    if (kotlin.math.abs(step) < 1f) {
-                                        break
-                                    }
-                                    val duration = 160
-                                    if (!motion.spatial) list.scrollBy(step) else list.animateScrollBy(
-                                        value = step,
-                                        animationSpec = tween(
-                                            durationMillis = duration,
-                                            easing = FastOutSlowInEasing
-                                        )
-                                    )
-                                }
-                            } finally {
-                                synchronized(lock) {
-                                    isRunning = false
-                                }
-                            }
+                    }.first { it }
+                }
+                suspend fun alignTopLine() {
+                    awaitVisibleLayouts()
+                    val index = list.firstVisibleItemIndex
+                    val layout = displayedPages.getOrNull(index)?.let { layouts[it.startOffset] } ?: return
+                    val line = layout.getLineForVerticalPosition(list.firstVisibleItemScrollOffset.toFloat())
+                    list.scrollToItem(index, kotlin.math.ceil(layout.getLineTop(line)).toInt())
+                }
+                for (direction in scrollTurns) {
+                    awaitVisibleLayouts()
+                    val info = list.layoutInfo
+                    val usableHeight = (info.viewportEndOffset - info.viewportStartOffset -
+                        info.beforeContentPadding - info.afterContentPadding).coerceAtLeast(1)
+                    if (direction < 0) {
+                        if (!list.canScrollBackward) continue
+                        list.scrollBy(-usableHeight.toFloat())
+                        withFrameNanos { }
+                        alignTopLine()
+                        continue
+                    }
+                    if (!list.canScrollForward) continue
+                    // Item offsets share the content origin: 0 is the top inner margin,
+                    // and viewportEndOffset - afterContentPadding is the bottom inner margin.
+                    val bottom = info.viewportEndOffset - info.afterContentPadding
+                    var target: Pair<Int, Int>? = null
+                    for (item in info.visibleItemsInfo.sortedBy { it.index }) {
+                        val layout = layouts[displayedPages[item.index].startOffset] ?: continue
+                        val line = (0 until layout.lineCount).firstOrNull {
+                            layout.getLineStart(it) < layout.layoutInput.text.length &&
+                                item.offset + layout.getLineBottom(it) > bottom + 0.5f
+                        }
+                        if (line != null) {
+                            target = item.index to kotlin.math.ceil(layout.getLineTop(line)).toInt()
+                            break
                         }
                     }
+                    if (target == null) {
+                        val next = (info.visibleItemsInfo.lastOrNull()?.index ?: list.firstVisibleItemIndex) + 1
+                        if (next in displayedPages.indices) target = next to 0
+                    }
+                    val point = target
+                    if (point != null && (point.first > list.firstVisibleItemIndex ||
+                        point.first == list.firstVisibleItemIndex && point.second > list.firstVisibleItemScrollOffset)) {
+                        list.scrollToItem(point.first, point.second)
+                    } else {
+                        // A single oversized inline image/line must not trap the reader on the same anchor.
+                        list.scrollBy(usableHeight.toFloat())
+                        withFrameNanos { }
+                        awaitVisibleLayouts()
+                    }
+                    withFrameNanos { }
                 }
             }
-
-            val turnScroll: (Int) -> Unit = { direction ->
-                val viewportHeight = list.layoutInfo.viewportSize.height.toFloat().takeIf { it > 0f } ?: height.toFloat()
-                val scrollDelta = (viewportHeight * 0.88f) * direction
-                val maxPending = viewportHeight * 2.5f
-                scrollController.scroll(scrollDelta, maxPending)
-            }
-
-            val scrollLineAction: (Int) -> Unit = { direction ->
-                val lineStep = with(density) { 72.dp.toPx() } * direction
-                val viewportHeight = list.layoutInfo.viewportSize.height.toFloat().takeIf { it > 0f } ?: height.toFloat()
-                val maxPending = viewportHeight * 1.5f
-                scrollController.scroll(lineStep, maxPending)
-            }
+            val turnScroll: (Int) -> Unit = { direction -> scrollTurns.trySend(if (direction < 0) -1 else 1); Unit }
+            val scrollLineAction: (Int) -> Unit = turnScroll
 
             val turn: (Int) -> Unit = if (mode == ReadingMode.PAGED) turnPaged else turnScroll
             val lineScroll: ((Int) -> Unit)? = if (mode == ReadingMode.SCROLL) scrollLineAction else null

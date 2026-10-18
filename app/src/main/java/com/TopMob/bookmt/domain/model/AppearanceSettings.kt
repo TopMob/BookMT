@@ -33,13 +33,19 @@ fun ReaderTheme.asAppTheme(): AppThemeMode = when (this) {
 }
 
 fun ReaderSettings.resolvedTheme(systemDark: Boolean): ReaderTheme =
-    if (appearance.readerFollowsApp) appearance.appTheme.resolve(systemDark) else theme
+    appearance.appTheme.resolve(systemDark)
 
 fun ReaderSettings.withReaderTheme(value: ReaderTheme): ReaderSettings = copy(
     theme = value,
     appearance = appearance.copy(
-        readerFollowsApp = false,
+        readerFollowsApp = true,
+        appTheme = value.asAppTheme(),
         lastLightTheme = if (value == ReaderTheme.DAY || value == ReaderTheme.SEPIA) value else appearance.lastLightTheme,
         lastDarkTheme = if (value == ReaderTheme.NIGHT || value == ReaderTheme.AMOLED_BLACK) value else appearance.lastDarkTheme,
     ),
 )
+
+/** One visible theme setting, shared by the library, reader and all overlays. */
+fun ReaderSettings.withAppTheme(value: AppThemeMode): ReaderSettings =
+    if (value == AppThemeMode.SYSTEM) copy(appearance = appearance.copy(appTheme = value, readerFollowsApp = true))
+    else withReaderTheme(value.resolve(false))

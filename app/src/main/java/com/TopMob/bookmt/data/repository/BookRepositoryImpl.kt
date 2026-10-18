@@ -44,6 +44,7 @@ class BookRepositoryImpl(
 
     private val assetMutex = kotlinx.coroutines.sync.Mutex()
     private val offlineMutex = kotlinx.coroutines.sync.Mutex()
+    private val checkedFb2Covers = mutableSetOf<String>()
     private val contentMutex = kotlinx.coroutines.sync.Mutex()
 
     override fun observeBooks(): Flow<List<Book>> =
@@ -81,6 +82,7 @@ class BookRepositoryImpl(
                 uri = storedUri,
                 coverImagePath = cover,
                 title = metadata.title,
+                description = metadata.description,
                 author = metadata.author,
                 format = parser.format.takeIf { it != BookFormat.UNKNOWN }
                     ?: BookFormat.fromFileName(fileName),
@@ -107,6 +109,7 @@ class BookRepositoryImpl(
                         IllegalStateException("No parser for ${book.format}"),
                     )
                 val local = prepareOffline(book)
+                repairMissingFb2Cover(local, parser)
                 val source = Uri.parse(local.uri)
                 val file = if (source.scheme == "file") source.path?.let { java.io.File(it) } else null
                 val key = file?.takeIf { it.isFile }?.let { ContentKey(local.uri, it.length(), it.lastModified(), book.title, book.format) }
@@ -142,6 +145,26 @@ class BookRepositoryImpl(
                 Resource.Error(t)
             }
         }
+
+    /** Repairs the historical FB2 import omission without replacing user metadata or anchors. */
+    private suspend fun repairMissingFb2Cover(book: Book, parser: com.TopMob.bookmt.domain.parser.BookParser) {
+        if (book.format != BookFormat.FB2 || !book.coverImagePath.isNullOrBlank() || storageDir == null) return
+        assetMutex.withLock {
+            val current = bookDao.getById(book.id) ?: return@withLock
+            if (!current.coverImagePath.isNullOrBlank()) return@withLock
+            val file = Uri.parse(book.uri).path?.let { java.io.File(it) }
+            val key = "${book.id}/${book.uri}/${file?.length()}/${file?.lastModified()}"
+            if (key in checkedFb2Covers) return@withLock
+            var cover: String? = null
+            try {
+                val metadata = openStream(book.uri).use { parser.parseMetadata(it, book.title) }
+                cover = saveCoverImage(metadata.coverImageBytes)
+                if (cover != null && bookDao.setCoverIfMissing(book.id, cover) == 0) deleteUnreferencedCover(cover)
+                checkedFb2Covers += key
+            } catch (error: CancellationException) { cover?.let { deleteUnreferencedCover(it) }; throw error }
+            catch (_: Exception) { cover?.let { deleteUnreferencedCover(it) } /* Cover failure cannot prevent reading. */ }
+        }
+    }
 
     override suspend fun prepareOffline(book: Book): Book = withContext(dispatchers.io) {
         val directory = storageDir ?: return@withContext book

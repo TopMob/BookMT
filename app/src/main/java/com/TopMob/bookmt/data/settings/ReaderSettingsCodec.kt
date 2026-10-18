@@ -47,17 +47,20 @@ internal object ReaderSettingsCodec {
         ).sanitized()
     }
 
-    fun needsMigration(prefs: Preferences): Boolean = prefs[Keys.UI_VERSION] == null
+    fun needsMigration(prefs: Preferences): Boolean = (prefs[Keys.UI_VERSION] ?: 0) < 2
 
     fun migrate(prefs: Preferences, legacyInstall: Boolean): Preferences {
         if (!needsMigration(prefs)) return prefs
         return prefs.toMutablePreferences().apply {
-            writeReaderSettings(prefs.toReaderSettings(legacyInstall))
+            val original = prefs.toReaderSettings(legacyInstall)
+            // Prefer the explicitly selected reading palette when merging the former two settings.
+            val chosen = if (original.appearance.readerFollowsApp) original.appearance.appTheme else original.theme.asAppTheme()
+            writeReaderSettings(original.withAppTheme(chosen))
         }.toPreferences()
     }
 
     internal fun MutablePreferences.writeReaderSettings(s: ReaderSettings) {
-        this[Keys.UI_VERSION] = 1
+        this[Keys.UI_VERSION] = maxOf(this[Keys.UI_VERSION] ?: 0, 2)
         this[Keys.APP_THEME] = s.appearance.appTheme.name
         this[Keys.READER_FOLLOWS_APP] = s.appearance.readerFollowsApp
         this[Keys.LIGHT_THEME] = s.appearance.lastLightTheme.name

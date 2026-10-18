@@ -17,7 +17,7 @@ class GetBooksUseCaseTest {
 
     private val sample = listOf(
         Book(id = 1, uri = "a", title = "Bravo", author = "Zed", progress = 0.5f, addedTimestamp = 100),
-        Book(id = 2, uri = "b", title = "Alpha", author = "Ann", progress = 1.0f, addedTimestamp = 300),
+        Book(id = 2, uri = "b", title = "Alpha", author = "Ann", progress = 1.0f, completed = true, addedTimestamp = 300),
         Book(id = 3, uri = "c", title = "Charlie", author = "Max", progress = 0.0f, addedTimestamp = 200),
     )
 
@@ -53,6 +53,20 @@ class GetBooksUseCaseTest {
         assertEquals(listOf(3L), filter(BookQuery(status = com.TopMob.bookmt.domain.model.LibraryStatus.READING)).first().map { it.id })
         assertEquals(listOf(4L), filter(BookQuery(status = com.TopMob.bookmt.domain.model.LibraryStatus.UNREAD)).first().map { it.id })
         assertEquals(listOf(3L), filter(BookQuery(onlyInProgress = true)).first().map { it.id })
+    }
+
+
+    @Test fun `removing finished flag at end retains progress and returns to reading`() = runTest {
+        val book = Book(id = 8, uri = "local", title = "Book", progress = 1f, completed = false, lastReadPosition = 420)
+        val filter = GetBooksUseCase(FakeBookRepository(listOf(book)))
+        assertEquals(emptyList<Book>(), filter(BookQuery(status = com.TopMob.bookmt.domain.model.LibraryStatus.FINISHED)).first())
+        assertEquals(listOf(book), filter(BookQuery(status = com.TopMob.bookmt.domain.model.LibraryStatus.READING)).first())
+    }
+
+    @Test fun `equal sort values have stable id order despite repository order`() = runTest {
+        val books = listOf(9L, 2L, 7L).map { Book(id = it, uri = "$it", title = "Same") }
+        val filter = GetBooksUseCase(FakeBookRepository(books))
+        assertEquals(listOf(2L, 7L, 9L), filter(BookQuery(sortOrder = BookSortOrder.TITLE, ascending = true)).first().map { it.id })
     }
 
     private class FakeBookRepository(private val books: List<Book>) : BookRepository {

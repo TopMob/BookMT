@@ -1,7 +1,7 @@
 package com.TopMob.bookmt.domain.model
 
 /**
- * A book as the rest of the app reasons about it (pure domain type — no Room/Android dependencies).
+ * A book as the rest of the app reasons about it (pure domain type вЂ” no Room/Android dependencies).
  *
  * @property id Stable local identifier (Room primary key).
  * @property uri Content URI / file path the book was imported from.
@@ -44,7 +44,7 @@ data class Book(
 
     val hasBeenOpened: Boolean get() = lastReadTimestamp > 0L
 
-    val isFinished: Boolean get() = completed || progress >= 1f
+    val isFinished: Boolean get() = completed
 
     /**
      * Rough estimate of the book's total character length, inferred from how far the last-read

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_reading_controls">Чтение и управление</string>
+    <string name="settings_library_files">Библиотека и файлы</string>
+    <string name="settings_about">О BookMT</string>
+    <string name="settings_appearance_summary">Единая тема приложения, мягкие переходы</string>
+    <string name="settings_reading_summary">Размер текста, шрифт, поля и управление экраном</string>
+    <string name="settings_speech_summary">Локальные голоса, скорость и паузы</string>
+    <string name="settings_files_summary">Локальные копии, резервный ZIP и статистика</string>
+    <string name="settings_language_summary">Язык системы, русский или английский</string>
+    <string name="settings_about_summary">Версия и лицензия встроенных голосов</string>
+    <string name="settings_screen_controls">Экран и управление</string>
+    <string name="settings_offline_description">Чтение и озвучка работают локально. Без аккаунтов и автоматической отправки данных.</string>
+    <string name="settings_version">Версия %1$s</string>
+    <string name="settings_serif">С засечками</string>
+    <string name="settings_sans">Без засечек</string>
+    <string name="settings_mono">Моноширинный</string>
+    <string name="settings_restore_confirm">Заменить библиотеку?</string>
+    <string name="settings_restore_explanation">Этот ZIP заменит библиотеку, отметки и настройки. Библиотеки не объединяются. Если хотите сохранить текущую библиотеку, сначала создайте резервную копию.</string>
+    <string name="settings_restore_action">Восстановить</string>
+    <string name="library_filters">Фильтры</string>
+    <string name="library_view">Вид библиотеки</string>
+    <string name="library_select_all">Выбрать все найденные (%1$d)</string>
+    <string name="library_show_count">Показать книги (%1$d)</string>
+    <string name="library_searching">Поиск…</string>
+    <string name="library_selected_book">Выбрана</string>
+    <string name="library_favorite_label">Избранное</string>
+    <string name="library_search_clear">Очистить поиск</string>
+    <string name="library_collection_all">Книги со всеми выбранными коллекциями.</string>
+    <string name="book_open">Читать книгу</string>
+    <string name="library_progress_label">Прочитано %1$d%%</string>
+    <string name="library_keep_position_unread">Снять отметку «Прочитано»</string>
+</resources>
