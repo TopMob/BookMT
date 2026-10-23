@@ -1,4 +1,7 @@
-package com.TopMob.bookmt.presentation.bookshelf
+package com.TopMob.bookmt.presentation.bookshelf.components
+
+import com.TopMob.bookmt.presentation.bookshelf.BookshelfUiState
+import com.TopMob.bookmt.presentation.bookshelf.BookshelfViewMode
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn

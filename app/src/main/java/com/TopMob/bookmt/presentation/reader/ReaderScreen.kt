@@ -3,6 +3,7 @@ package com.TopMob.bookmt.presentation.reader
 import android.content.Intent
 import android.view.KeyEvent
 import androidx.compose.material3.TextButton
+import com.TopMob.bookmt.presentation.reader.pdf.PdfReaderScreen
 import androidx.compose.ui.res.stringResource
 import com.TopMob.bookmt.R
 import com.TopMob.bookmt.domain.model.Bookmark

@@ -18,7 +18,7 @@ import com.TopMob.bookmt.domain.model.BookFormat
 import com.TopMob.bookmt.domain.repository.BookRepository
 import com.TopMob.bookmt.domain.usecase.ManageBookmarksUseCase
 import com.TopMob.bookmt.presentation.navigation.Screen
-import com.TopMob.bookmt.presentation.reader.PdfReaderViewModel
+import com.TopMob.bookmt.presentation.reader.pdf.PdfReaderViewModel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 import org.junit.Assert.*

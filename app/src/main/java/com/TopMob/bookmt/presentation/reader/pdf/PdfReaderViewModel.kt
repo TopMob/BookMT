@@ -1,4 +1,4 @@
-package com.TopMob.bookmt.presentation.reader
+package com.TopMob.bookmt.presentation.reader.pdf
 
 import android.content.Context
 import android.graphics.Bitmap

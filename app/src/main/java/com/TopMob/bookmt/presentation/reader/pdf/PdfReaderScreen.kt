@@ -1,4 +1,4 @@
-package com.TopMob.bookmt.presentation.reader
+package com.TopMob.bookmt.presentation.reader.pdf
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTransformGestures

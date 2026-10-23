@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.Density
 import androidx.test.platform.app.InstrumentationRegistry
 import com.TopMob.bookmt.domain.model.*
 import com.TopMob.bookmt.presentation.bookshelf.*
+import com.TopMob.bookmt.presentation.bookshelf.components.*
 import com.TopMob.bookmt.presentation.settings.*
 import com.TopMob.bookmt.presentation.theme.*
 import org.junit.Assert.*
