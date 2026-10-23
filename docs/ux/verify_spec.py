@@ -84,7 +84,7 @@ def main():
             path = target.split("#", 1)[0]
             if not (document.parent / path).is_file():
                 errors.append(f"Broken link: {document.name} -> {target}")
-    runtime = ROOT.parent.parent / "app/src/main/java/com/TopMob/bookmt/ui/theme/ComfortPalette.kt"
+    runtime = ROOT.parent.parent / "app/src/main/java/com/TopMob/bookmt/presentation/theme/ComfortPalette.kt"
     if runtime.exists():
         kotlin = runtime.read_text(encoding="utf-8")
         for name, tokens in palettes.items():

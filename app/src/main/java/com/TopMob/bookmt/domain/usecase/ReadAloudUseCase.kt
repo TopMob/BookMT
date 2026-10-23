@@ -25,19 +25,27 @@ class ReadAloudUseCase @Inject constructor(private val engine: TtsEngine) {
                 var next = end
                 while (next < text.length && text[next].isWhitespace()) next++
                 val contentEnd = cursor + raw.trimEnd().length
-                val hasNewline = '\n' in text.substring(contentEnd, next)
+                val trailingWhitespace = text.substring(contentEnd, next)
+                val newlineCount = trailingWhitespace.count { it == '\n' }
+                val hasNewline = newlineCount > 0
                 val stripped = raw.trimEnd().trimEnd('"', '\'', '»', '«', '”', '“', '’', '‘', '›', '‹', ')', ']', '}')
                 val sentence = stripped.lastOrNull() in setOf('.', '!', '?', '…')
                 val clause = stripped.lastOrNull() in setOf(':', ';', '—', '–', ',')
-                val paragraph = (hasNewline && (sentence || clause || next >= text.length ||
-                    text.substring(contentEnd, next).count { it == '\n' } >= 2 ||
-                    (next < text.length && (text[next] == '—' || text[next] == '–' || text[next].isUpperCase())))) ||
-                    (end == text.length && (index == content.chapters.lastIndex || content.descriptor(index + 1)?.sourceId != chapter.sourceId))
+                val nextChar = if (next < text.length) text[next] else null
+                val nextIsNewUtterance = nextChar != null && (
+                    nextChar in setOf('—', '–', '-', '«', '"', '“', '„') || nextChar.isUpperCase()
+                )
+                val isTitleOrHeading = hasNewline && raw.trim().length <= 60 && !raw.contains('.')
+                val isEndOfBlock = end == text.length && (index == content.chapters.lastIndex || content.descriptor(index + 1)?.sourceId != chapter.sourceId)
+                val paragraph = isEndOfBlock || next >= text.length || (hasNewline && (
+                    newlineCount >= 2 || sentence || isTitleOrHeading || nextIsNewUtterance
+                ))
                 val pause = when {
                     paragraph -> paragraphPauseMs
                     sentence -> sentencePauseMs
-                    clause -> (sentencePauseMs * 0.65f).toInt().coerceAtLeast(140)
-                    else -> 80
+                    clause -> maxOf(160, (sentencePauseMs * 0.65f).toInt())
+                    hasNewline -> maxOf(140, (sentencePauseMs * 0.5f).toInt())
+                    else -> 120
                 }
                 if (batch.any(Char::isLetterOrDigit)) emit(TextSegment(batch, SpeakerRole.NARRATOR,
                     chapter.startOffset + cursor, sourceEndOffset = chapter.startOffset + contentEnd,

@@ -63,3 +63,8 @@ obj/
 
 # Pinned development-only TTS downloads and generated APK assets
 .tts-cache/
+
+# Python cache
+__pycache__/
+*.pyc
+

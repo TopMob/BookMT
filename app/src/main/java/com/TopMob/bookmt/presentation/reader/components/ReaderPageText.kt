@@ -84,6 +84,7 @@ fun ReaderPageText(page: ReaderPage, style: TextStyle, bookmarks: List<Bookmark>
                         addStyle(
                             SpanStyle(
                                 background = ttsHighlightColor,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
                             ),
                             from,
                             to,
