@@ -23,9 +23,12 @@ com.TopMob.bookmt
 │   └── repository/        Repository implementations
 └── presentation/         Jetpack Compose (Material 3)
     ├── navigation/        NavHost + typed routes
-    ├── bookshelf/         Library, details editor, global bookmarks, grid/list, sort/filter, progress
-    ├── reader/            ViewModel + UiState + Screen + paginator + components (paged/scroll, controls, drawers, settings)
-    └── theme/             ReaderColors (Day/Sepia/Night/AMOLED/custom)
+    ├── bookshelf/         Library browser, details editor, global bookmarks, components
+    ├── reader/            ViewModel + UiState + Screen + paginator + components + pdf/
+    ├── settings/          App settings, appearance, reading, speech preferences
+    ├── components/        Shared UI components (ComfortStates)
+    ├── theme/             ComfortPalette, unified themes, typography, motion
+    └── util/              Formatters, local document SAF contracts
 ```
 
 ## Key design decisions

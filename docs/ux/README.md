@@ -88,7 +88,7 @@ Paths below are relative to `app/src/main/java/com/TopMob/bookmt/`.
 | `presentation/bookshelf/components/BookItems.kt`, `BookCover.kt` | Grid/list items, progress, missing cover |
 | `presentation/bookshelf/components/BookContextSheet.kt` | Actions, delete confirmation, legacy information dialog |
 | `presentation/bookshelf/BookDetailsScreen.kt` | Details, metadata editing, cover import, technical data |
-| `presentation/bookshelf/LibraryTools.kt` | Filters, collection choice, offline preparation, statistics |
+| `presentation/bookshelf/components/LibraryTools.kt` | Filters, collection choice, offline preparation, statistics |
 | `presentation/bookshelf/GlobalBookmarksScreen.kt` | All marks, search/filter/edit/delete/export |
 | `presentation/settings/AppSettingsScreen.kt` | Settings home, language, reading preferences, ZIP backup/restore |
 | `presentation/settings/ExtraReadingPreferences.kt` | Fonts, brightness, orientation, fullscreen, volume keys, auto-page |
@@ -97,8 +97,8 @@ Paths below are relative to `app/src/main/java/com/TopMob/bookmt/`.
 | `presentation/reader/components/ReaderContent.kt`, `ReaderPageText.kt` | Pages/scroll, links, footnotes, images, text overlays |
 | `presentation/reader/components/ReaderTools.kt` | Search, go-to, appearance, selection, note editor |
 | `presentation/reader/components/ReaderSideDrawer.kt` | Contents and book marks |
-| `presentation/reader/PdfReaderScreen.kt` | PDF loading, zoom/pan, page navigation and marks |
-| `presentation/theme/ReaderColors.kt`, `ui/theme/*` | Unified themes and typography |
+| `presentation/reader/pdf/PdfReaderScreen.kt` | PDF loading, zoom/pan, page navigation and marks |
+| `presentation/theme/ReaderColors.kt`, `presentation/theme/*` | Unified themes and typography |
 | `presentation/util/LocalDocumentContracts.kt` | Deliberate system file interaction |
 | `data/tts/TtsPlaybackService.kt` | System media notification; no library player |
 
