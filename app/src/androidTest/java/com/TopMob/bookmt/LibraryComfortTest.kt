@@ -15,7 +15,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.TopMob.bookmt.domain.model.*
 import com.TopMob.bookmt.presentation.bookshelf.*
 import com.TopMob.bookmt.presentation.settings.*
-import com.TopMob.bookmt.ui.theme.*
+import com.TopMob.bookmt.presentation.theme.*
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test

@@ -1,4 +1,4 @@
-package com.TopMob.bookmt.ui.theme
+package com.TopMob.bookmt.presentation.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

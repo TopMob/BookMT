@@ -1,4 +1,4 @@
-package com.TopMob.bookmt.ui.theme
+package com.TopMob.bookmt.presentation.theme
 
 import com.TopMob.bookmt.domain.model.MotionMode
 import org.junit.Assert.*

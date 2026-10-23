@@ -24,9 +24,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.TopMob.bookmt.data.settings.AppearanceLaunchCache
 import com.TopMob.bookmt.domain.model.*
 import com.TopMob.bookmt.presentation.navigation.Screen
-import com.TopMob.bookmt.ui.theme.AppMotionScale
-import com.TopMob.bookmt.ui.theme.ComfortMotion
-import com.TopMob.bookmt.ui.theme.LocalComfortMotion
+import com.TopMob.bookmt.presentation.theme.AppMotionScale
+import com.TopMob.bookmt.presentation.theme.ComfortMotion
+import com.TopMob.bookmt.presentation.theme.LocalComfortMotion
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -48,7 +48,7 @@ import com.TopMob.bookmt.presentation.reader.ReaderNavigationAction
 import com.TopMob.bookmt.presentation.reader.VolumeKey
 import com.TopMob.bookmt.presentation.reader.VolumeKeyController
 import com.TopMob.bookmt.presentation.settings.AppSettingsViewModel
-import com.TopMob.bookmt.ui.theme.BookMTTheme
+import com.TopMob.bookmt.presentation.theme.BookMTTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 /**

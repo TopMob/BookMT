@@ -16,7 +16,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.TopMob.bookmt.domain.model.*
 import com.TopMob.bookmt.presentation.components.ComfortEmptyState
 import com.TopMob.bookmt.presentation.settings.ReaderThemePreference
-import com.TopMob.bookmt.ui.theme.*
+import com.TopMob.bookmt.presentation.theme.*
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test

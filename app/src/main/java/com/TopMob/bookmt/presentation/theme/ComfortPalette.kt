@@ -1,4 +1,4 @@
-package com.TopMob.bookmt.ui.theme
+package com.TopMob.bookmt.presentation.theme
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color

@@ -23,7 +23,7 @@ data class ImportBatch(val bookIds: List<Long>, val failures: List<String>)
 data class ImportProgress(val completed: Int, val total: Int)
 
 @Singleton
-class DocumentImport @Inject constructor(@ApplicationContext private val context: Context, private val importBook: ImportBookUseCase,
+class DocumentImport @Inject constructor(@param:ApplicationContext private val context: Context, private val importBook: ImportBookUseCase,
     private val books: com.TopMob.bookmt.domain.repository.BookRepository) {
     private val mutex = Mutex()
     private val current = MutableStateFlow<ImportProgress?>(null)

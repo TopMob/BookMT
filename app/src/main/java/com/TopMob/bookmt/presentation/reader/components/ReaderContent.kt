@@ -65,7 +65,7 @@ fun ReaderContent(
     prioritizeAudio: Boolean = false,
     onRegisterLineScroll: (((Int) -> Unit)?) -> Unit = {},
 ) {
-    val motion = com.TopMob.bookmt.ui.theme.LocalComfortMotion.current
+    val motion = com.TopMob.bookmt.presentation.theme.LocalComfortMotion.current
     val density = LocalDensity.current
     val measurer = rememberTextMeasurer(cacheSize = 16)
     val latestOffset by rememberUpdatedState(currentOffset)

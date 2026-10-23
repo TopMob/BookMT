@@ -54,8 +54,8 @@ fun ReaderSideDrawer(
     onDismiss: () -> Unit,
     content: @Composable () -> Unit,
 ) {
-    val motion = com.TopMob.bookmt.ui.theme.LocalComfortMotion.current
-    val palette = com.TopMob.bookmt.ui.theme.LocalComfortPalette.current
+    val motion = com.TopMob.bookmt.presentation.theme.LocalComfortMotion.current
+    val palette = com.TopMob.bookmt.presentation.theme.LocalComfortPalette.current
     Box(modifier = Modifier.fillMaxSize()) {
         // Scrim
         AnimatedVisibility(visible = visible, enter = fadeIn(androidx.compose.animation.core.tween(motion.duration(140))), exit = fadeOut(androidx.compose.animation.core.tween(motion.duration(120)))) {
@@ -69,9 +69,9 @@ fun ReaderSideDrawer(
         AnimatedVisibility(
             visible = visible,
             enter = fadeIn(androidx.compose.animation.core.tween(motion.duration(140))) +
-                if (motion.spatial) slideInHorizontally(androidx.compose.animation.core.tween(200, easing = com.TopMob.bookmt.ui.theme.ComfortMotion.EnterEase)) { -it } else androidx.compose.animation.EnterTransition.None,
+                if (motion.spatial) slideInHorizontally(androidx.compose.animation.core.tween(200, easing = com.TopMob.bookmt.presentation.theme.ComfortMotion.EnterEase)) { -it } else androidx.compose.animation.EnterTransition.None,
             exit = fadeOut(androidx.compose.animation.core.tween(motion.duration(120))) +
-                if (motion.spatial) slideOutHorizontally(androidx.compose.animation.core.tween(160, easing = com.TopMob.bookmt.ui.theme.ComfortMotion.ExitEase)) { -it } else androidx.compose.animation.ExitTransition.None,
+                if (motion.spatial) slideOutHorizontally(androidx.compose.animation.core.tween(160, easing = com.TopMob.bookmt.presentation.theme.ComfortMotion.ExitEase)) { -it } else androidx.compose.animation.ExitTransition.None,
             modifier = Modifier.align(Alignment.CenterStart),
         ) {
             Surface(

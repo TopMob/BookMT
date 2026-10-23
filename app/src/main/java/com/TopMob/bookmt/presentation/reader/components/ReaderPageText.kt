@@ -19,7 +19,7 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import com.TopMob.bookmt.R
-import com.TopMob.bookmt.ui.theme.annotationColor
+import com.TopMob.bookmt.presentation.theme.annotationColor
 import java.io.File
 
 @Composable
@@ -29,7 +29,7 @@ fun ReaderPageText(page: ReaderPage, style: TextStyle, bookmarks: List<Bookmark>
     onLoadError: (Throwable) -> Unit = {}, spokenSegment: com.TopMob.bookmt.domain.model.TextSegment? = null,
     ttsHighlightColor: Color = Color(0x6642A5F5),
     onPageLayout: (TextLayoutResult?) -> Unit = {}) {
-    val palette = com.TopMob.bookmt.ui.theme.LocalComfortPalette.current
+    val palette = com.TopMob.bookmt.presentation.theme.LocalComfortPalette.current
     val latestError by rememberUpdatedState(onLoadError)
     val loaded by produceState<ReaderPage?>(null, page) {
         try { value = withContext(Dispatchers.IO) { page.materialized() } }

@@ -46,7 +46,7 @@ data class LibraryBookmark(val bookmark: Bookmark, val bookTitle: String)
 class GlobalBookmarksViewModel @Inject constructor(
     books: BookRepository,
     private val bookmarks: BookmarkRepository,
-    @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
+    @param:dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
 ) : ViewModel() {
     val entries = combine(books.observeBooks(), bookmarks.observeAllBookmarks()) { library, notes ->
         val titles = library.associate { it.id to it.title }

@@ -19,5 +19,5 @@ enum class AppLanguage(val tag: String) {
     RUSSIAN("ru");
 
     /** The concrete [Locale] to apply, or null when the system default should be used. */
-    fun toLocaleOrNull(): Locale? = if (tag.isEmpty()) null else Locale(tag)
+    fun toLocaleOrNull(): Locale? = if (tag.isEmpty()) null else Locale.forLanguageTag(tag)
 }

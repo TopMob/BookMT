@@ -70,7 +70,7 @@ fun ReaderTopBar(
     onAutoPage: () -> Unit = {},
     onShareNotes: () -> Unit = {},
 ) {
-    val motion = com.TopMob.bookmt.ui.theme.LocalComfortMotion.current
+    val motion = com.TopMob.bookmt.presentation.theme.LocalComfortMotion.current
     val distance = with(androidx.compose.ui.platform.LocalDensity.current) { 8.dp.roundToPx() }
     AnimatedVisibility(
         visible = visible,
@@ -150,7 +150,7 @@ fun ReaderBottomBar(
     paginationReady: Boolean = true,
     onResumeSavedTts: (() -> Unit)? = null,
 ) {
-    val motion = com.TopMob.bookmt.ui.theme.LocalComfortMotion.current
+    val motion = com.TopMob.bookmt.presentation.theme.LocalComfortMotion.current
     val distance = with(androidx.compose.ui.platform.LocalDensity.current) { 8.dp.roundToPx() }
     AnimatedVisibility(
         visible = visible,

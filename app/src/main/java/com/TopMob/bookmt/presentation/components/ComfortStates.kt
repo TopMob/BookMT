@@ -16,7 +16,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.TopMob.bookmt.R
 import com.TopMob.bookmt.domain.model.MotionMode
-import com.TopMob.bookmt.ui.theme.LocalComfortMotion
+import com.TopMob.bookmt.presentation.theme.LocalComfortMotion
 import kotlinx.coroutines.delay
 
 /** T04: no flashing spinner for short operations, and no perpetual loop in reduced-motion mode. */

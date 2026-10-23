@@ -5,7 +5,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import com.TopMob.bookmt.ui.theme.LocalComfortMotion
+import com.TopMob.bookmt.presentation.theme.LocalComfortMotion
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost

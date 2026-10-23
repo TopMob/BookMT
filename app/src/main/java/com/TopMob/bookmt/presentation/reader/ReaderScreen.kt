@@ -81,7 +81,7 @@ fun ReaderScreen(
         return
     }
     val theme = state.settings.resolvedTheme(androidx.compose.foundation.isSystemInDarkTheme())
-    com.TopMob.bookmt.ui.theme.BookMTTheme(theme) {
+    com.TopMob.bookmt.presentation.theme.BookMTTheme(theme) {
         ReaderScreenContent(onNavigateBack, viewModel, state, theme)
     }
 }

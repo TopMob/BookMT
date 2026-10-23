@@ -3,8 +3,6 @@ package com.TopMob.bookmt.presentation.theme
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import com.TopMob.bookmt.domain.model.ReaderTheme
-import com.TopMob.bookmt.ui.theme.ComfortPalette
-import com.TopMob.bookmt.ui.theme.ComfortPalettes
 
 @Immutable
 data class ReaderColors(
