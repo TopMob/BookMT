@@ -11,10 +11,7 @@ import com.TopMob.bookmt.presentation.reader.components.ReaderSelection
 import com.TopMob.bookmt.presentation.reader.components.ReaderToolDialogs
 import com.TopMob.bookmt.presentation.reader.components.SelectionActionsDialog
 import com.TopMob.bookmt.presentation.reader.components.EditAnnotationDialog
-import android.app.Activity
 import android.content.Context
-import android.content.ContextWrapper
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -492,79 +489,4 @@ private fun ReaderSurface(
             prioritizeAudio = state.tts.status in setOf(TtsStatus.PLAYING, TtsStatus.PREPARING),
         )
     }
-}
-
-/** Thin left-edge gesture region: dragging up brightens, down dims (relative to height). */
-@Composable
-private fun BrightnessEdgeStrip(level: Float, onLevelChange: (Float) -> Unit) {
-    // rememberUpdatedState so the long-lived pointerInput lambda always sees the latest level.
-    val currentLevel by rememberUpdatedState(level)
-    Box(
-        modifier = Modifier
-            .fillMaxHeight()
-            .width(32.dp)
-            .pointerInput(Unit) {
-                detectVerticalDragGestures { _, dragAmount ->
-                    // Drag up (negative dy) increases brightness.
-                    val delta = -dragAmount / size.height
-                    onLevelChange((currentLevel + delta).coerceIn(0.01f, 1f))
-                }
-            },
-    )
-}
-
-@Composable
-private fun ReaderKeyNavigation(
-    volumeEnabled: Boolean,
-    navigationEnabled: Boolean,
-    onVolumeKey: (VolumeKey) -> Boolean,
-    onNavigate: (ReaderNavigationAction, KeyEvent) -> Boolean,
-) {
-    val activity = LocalContext.current.findActivity()
-    val latestOnVolumeKey by rememberUpdatedState(onVolumeKey)
-    val latestOnNavigate by rememberUpdatedState(onNavigate)
-    DisposableEffect(activity, volumeEnabled, navigationEnabled) {
-        val controller = activity as? VolumeKeyController
-        controller?.onVolumeKey = if (volumeEnabled) { key -> latestOnVolumeKey(key) } else null
-        controller?.onReaderNavigation = if (navigationEnabled) { action, event -> latestOnNavigate(action, event) } else null
-        onDispose {
-            controller?.onVolumeKey = null
-            controller?.onReaderNavigation = null
-        }
-    }
-}
-
-@Composable
-private fun KeepScreenOn(enabled: Boolean) {
-    val view = LocalView.current
-    DisposableEffect(enabled) {
-        view.keepScreenOn = enabled
-        onDispose { view.keepScreenOn = false }
-    }
-}
-
-@Composable
-private fun BrightnessOverride(enabled: Boolean, level: Float) {
-    val activity = LocalContext.current.findActivity()
-    DisposableEffect(enabled, level) {
-        val window = activity?.window
-        val attrs = window?.attributes
-        val original = attrs?.screenBrightness
-        if (window != null && attrs != null && enabled) {
-            attrs.screenBrightness = level.coerceIn(0.01f, 1f)
-            window.attributes = attrs
-        }
-        onDispose {
-            if (window != null && attrs != null && original != null) {
-                attrs.screenBrightness = original
-                window.attributes = attrs
-            }
-        }
-    }
-}
-
-private tailrec fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
 }
