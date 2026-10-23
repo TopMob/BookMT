@@ -56,7 +56,7 @@ com.TopMob.bookmt
 Kotlin 2.2 · Jetpack Compose (Material 3) · Hilt · Room (KSP) · DataStore · Coroutines/Flow ·
 Navigation-Compose · Coil · minSdk 24 / targetSdk 36.
 
-See [TECHNICAL_AUDIT.md](TECHNICAL_AUDIT.md) for fixes, validation and remaining limitations.
+See [TECHNICAL_AUDIT.md](docs/audits/TECHNICAL_AUDIT.md) for fixes, validation and remaining limitations.
 
 > The `ksp` version in `gradle/libs.versions.toml` must track the Kotlin version exactly; bump it if
 > a Gradle sync reports an unresolved KSP artifact.
