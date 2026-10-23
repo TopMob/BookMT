@@ -58,7 +58,7 @@ com.TopMob.bookmt
     └── theme/             Comfort palettes, motion scales, and typography
 ```
 
-For detailed architectural decisions, see [ARCHITECTURE.md](ARCHITECTURE.md) and [READER_ENGINE.md](READER_ENGINE.md).
+For detailed architectural decisions, see [ARCHITECTURE.md](ARCHITECTURE.md) and [READER_ENGINE.md](docs/specs/READER_ENGINE.md).
 
 ---
 

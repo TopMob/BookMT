@@ -1,6 +1,6 @@
 # BookMT — Architecture
 
-> Обязательное ограничение: полностью офлайн-приложение. Сеть, облако, телеметрия и удалённый анализ не входят в архитектуру. TTS — встроенные локальные модели и локальный синтез (OFFLINE_TTS.md). См. `AGENTS.md` и `FEATURE_BASELINE.md`.
+> Обязательное ограничение: полностью офлайн-приложение. Сеть, облако, телеметрия и удалённый анализ не входят в архитектуру. TTS — встроенные локальные модели и локальный синтез ([OFFLINE_TTS.md](docs/specs/OFFLINE_TTS.md)). См. `AGENTS.md` и [FEATURE_BASELINE.md](docs/specs/FEATURE_BASELINE.md).
 
 An Android e-book reader. **Clean Architecture + MVVM**, single-module, organized by
 layer then feature.
@@ -49,7 +49,7 @@ com.TopMob.bookmt
   and wake lock. The reader ViewModel owns the reading job; leaving the reader stops it. Events carry a book ID and session ID; reading and listening have separate anchors.
   No Android system TTS, runtime downloads or Internet permission. The role-analysis
   interface remains extensible, but the selected voice currently reads every role.
-  See `OFFLINE_TTS.md` for model preparation, licensing and validation.
+  See [OFFLINE_TTS.md](docs/specs/OFFLINE_TTS.md) for model preparation, licensing and validation.
 
 ## Tech stack
 
@@ -75,4 +75,4 @@ uses the same styles and placeholders for measuring and displaying. Page indices
 cached on disk; source blocks are CRC-checked. Background pagination yields to speech.
 Source files and user annotations are never stored in or removed with this cache.
 
-See [READER_ENGINE.md](READER_ENGINE.md) for compatibility, limits and verification.
+See [READER_ENGINE.md](docs/specs/READER_ENGINE.md) for compatibility, limits and verification.
