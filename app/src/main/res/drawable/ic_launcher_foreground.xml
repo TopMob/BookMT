@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Temporary app icon, derived from icon.svg (an open book).
+  Temporary app icon, derived from art/icon.svg (an open book).
   The source artwork uses a 25.977 x 25.977 viewBox; the group below scales it ~2.31x and
   offsets it by 24 so the artwork lands centered within the adaptive-icon safe zone
   (occupying the central 60dp of the 108dp canvas). Filled white for contrast against the

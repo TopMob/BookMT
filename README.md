@@ -50,12 +50,16 @@ com.TopMob.bookmt
 │   ├── settings/          DataStore preferences & launch caches
 │   ├── tts/               OnnxTtsEngine, TtsPlaybackService, SpeechAudio processor
 │   ├── backup/            Local database and cover snapshot/restore manager
-│   └── repository/        BookRepositoryImpl, BookmarkRepositoryImpl
+│   ├── mapper/            Entity <-> domain mappers
+│   └── repository/        BookRepositoryImpl, BookmarkRepositoryImpl, SettingsRepositoryImpl
 └── presentation/          Jetpack Compose UI (Material 3)
     ├── navigation/        Type-safe navigation routes & NavHost
-    ├── bookshelf/         Library browser, book details, bookmarks screen
-    ├── reader/            ReaderScreen, ReaderViewModel, pagination components & controls
-    └── theme/             Comfort palettes, motion scales, and typography
+    ├── bookshelf/         Library browser, book details, bookmarks screen, components
+    ├── reader/            ReaderScreen, ReaderViewModel, pagination components & pdf/
+    ├── settings/          App settings, appearance, reading, speech preferences
+    ├── components/        Shared UI components (ComfortStates)
+    ├── theme/             Comfort palettes, motion scales, and typography
+    └── util/              Formatters, local document SAF contracts
 ```
 
 For detailed architectural decisions, see [ARCHITECTURE.md](ARCHITECTURE.md) and [READER_ENGINE.md](docs/specs/READER_ENGINE.md).
