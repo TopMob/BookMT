@@ -1,9 +1,12 @@
 package com.TopMob.bookmt.presentation.reader
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.ContextWrapper
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.gestures.animateScrollBy
@@ -73,17 +76,19 @@ fun ReaderScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
-    VolumeKeyScroll { key ->
-        if (state.tts.status != TtsStatus.PLAYING) {
-            if (state.settings.readingMode == com.TopMob.bookmt.domain.model.ReadingMode.PAGED) {
-                if (key == VolumeKey.UP) viewModel.onPrevPage()
-                else viewModel.onNextPage()
-            } else {
-                val scrollAmount = listState.layoutInfo.viewportSize.height * 1.0f
-                if (scrollAmount > 0) {
-                    scope.launch {
-                        if (key == VolumeKey.UP) listState.animateScrollBy(-scrollAmount)
-                        else listState.animateScrollBy(scrollAmount)
+    if (state.settings.volumeKeyNavigation) {
+        VolumeKeyScroll { key ->
+            if (state.tts.status != TtsStatus.PLAYING) {
+                if (state.settings.readingMode == com.TopMob.bookmt.domain.model.ReadingMode.PAGED) {
+                    if (key == VolumeKey.UP) viewModel.onPrevPage()
+                    else viewModel.onNextPage()
+                } else {
+                    val scrollAmount = listState.layoutInfo.viewportSize.height * 1.0f
+                    if (scrollAmount > 0) {
+                        scope.launch {
+                            if (key == VolumeKey.UP) listState.animateScrollBy(-scrollAmount)
+                            else listState.animateScrollBy(scrollAmount)
+                        }
                     }
                 }
             }
@@ -193,6 +198,13 @@ fun ReaderScreen(
                     viewModel.onDismissOverlay()
                 },
                 onDelete = viewModel::onDeleteBookmark,
+                onExport = {
+                    viewModel.exportAnnotations { markdown ->
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("BookMT Annotations", markdown))
+                        Toast.makeText(context, context.getString(com.TopMob.bookmt.R.string.reader_notes_copied), Toast.LENGTH_SHORT).show()
+                    }
+                },
             )
         }
 
@@ -263,6 +275,9 @@ private fun ReaderSurface(
             colors = colors,
             horizontalPadding = state.settings.horizontalMarginDp,
             verticalPadding = state.settings.verticalMarginDp,
+            showStatusBar = state.settings.showStatusBar,
+            chapterTitle = state.currentChapterTitle ?: state.book?.title.orEmpty(),
+            minutesRemaining = state.minutesRemainingInChapter ?: state.minutesRemainingInBook,
             onOffsetChanged = onScrollOffsetChanged,
             onTapZone = onTapZone,
             modifier = modifier,
@@ -275,6 +290,9 @@ private fun ReaderSurface(
             horizontalPadding = state.settings.horizontalMarginDp,
             verticalPadding = state.settings.verticalMarginDp,
             listState = listState,
+            showStatusBar = state.settings.showStatusBar,
+            chapterTitle = state.currentChapterTitle ?: state.book?.title.orEmpty(),
+            minutesRemaining = state.minutesRemainingInChapter ?: state.minutesRemainingInBook,
             onOffsetChanged = onScrollOffsetChanged,
             onTapZone = onTapZone,
             modifier = modifier,

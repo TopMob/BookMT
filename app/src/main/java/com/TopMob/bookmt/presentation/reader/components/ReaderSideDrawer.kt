@@ -8,6 +8,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +26,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -88,13 +90,29 @@ fun NotesBookmarksPanel(
     bookmarks: List<Bookmark>,
     onEntryClick: (Bookmark) -> Unit,
     onDelete: (Long) -> Unit,
+    onExport: (() -> Unit)? = null,
 ) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text(
-            text = stringResource(R.string.reader_notes_bookmarks),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.reader_notes_bookmarks),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f),
+            )
+            if (onExport != null && bookmarks.isNotEmpty()) {
+                IconButton(onClick = onExport) {
+                    Icon(
+                        Icons.Filled.Share,
+                        contentDescription = stringResource(R.string.reader_export_notes),
+                    )
+                }
+            }
+        }
         Spacer(Modifier.padding(4.dp))
         if (bookmarks.isEmpty()) {
             Text(

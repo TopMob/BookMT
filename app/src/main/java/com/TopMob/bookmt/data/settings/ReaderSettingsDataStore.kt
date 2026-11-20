@@ -63,6 +63,8 @@ class ReaderSettingsDataStore(private val context: Context) {
             brightnessLevel = this[Keys.BRIGHTNESS_LEVEL] ?: defaults.brightnessLevel,
             keepScreenOn = this[Keys.KEEP_SCREEN_ON] ?: defaults.keepScreenOn,
             showProgressSlider = this[Keys.SHOW_SLIDER] ?: defaults.showProgressSlider,
+            showStatusBar = this[Keys.SHOW_STATUS_BAR] ?: defaults.showStatusBar,
+            volumeKeyNavigation = this[Keys.VOLUME_KEY_NAV] ?: defaults.volumeKeyNavigation,
             customFontPath = this[Keys.CUSTOM_FONT_PATH] ?: defaults.customFontPath,
         )
     }
@@ -80,6 +82,8 @@ class ReaderSettingsDataStore(private val context: Context) {
         this[Keys.BRIGHTNESS_LEVEL] = s.brightnessLevel
         this[Keys.KEEP_SCREEN_ON] = s.keepScreenOn
         this[Keys.SHOW_SLIDER] = s.showProgressSlider
+        this[Keys.SHOW_STATUS_BAR] = s.showStatusBar
+        this[Keys.VOLUME_KEY_NAV] = s.volumeKeyNavigation
         val fontPath = s.customFontPath
         if (fontPath == null) this.remove(Keys.CUSTOM_FONT_PATH) else this[Keys.CUSTOM_FONT_PATH] = fontPath
     }
@@ -100,6 +104,8 @@ class ReaderSettingsDataStore(private val context: Context) {
         val BRIGHTNESS_LEVEL = floatPreferencesKey("brightness_level")
         val KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
         val SHOW_SLIDER = booleanPreferencesKey("show_slider")
+        val SHOW_STATUS_BAR = booleanPreferencesKey("show_status_bar")
+        val VOLUME_KEY_NAV = booleanPreferencesKey("volume_key_nav")
         val CUSTOM_FONT_PATH = stringPreferencesKey("custom_font_path")
     }
 }

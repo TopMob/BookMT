@@ -22,6 +22,9 @@ data class ReaderUiState(
     val showControls: Boolean = false,
     val overlay: ReaderOverlay = ReaderOverlay.NONE,
     val tts: TtsPlaybackState = TtsPlaybackState(),
+    val wordsPerMinute: Int = 220,
+    val minutesRemainingInChapter: Int? = null,
+    val minutesRemainingInBook: Int? = null,
     val errorMessage: String? = null,
 ) {
     val totalLength: Int get() = content?.totalLength ?: 0

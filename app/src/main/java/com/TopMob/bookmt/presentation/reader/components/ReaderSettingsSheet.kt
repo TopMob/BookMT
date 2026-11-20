@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.TopMob.bookmt.R
+import com.TopMob.bookmt.domain.model.ReaderFontFamily
 import com.TopMob.bookmt.domain.model.ReaderSettings
 import com.TopMob.bookmt.domain.model.ReaderTheme
 import com.TopMob.bookmt.domain.model.ReadingMode
@@ -179,6 +180,84 @@ fun ReaderSettingsSheet(
                         label = { Text("${margin}dp") },
                     )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Font Family
+            Text(
+                text = stringResource(R.string.settings_font_family),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                listOf(
+                    ReaderFontFamily.SERIF to R.string.settings_font_serif,
+                    ReaderFontFamily.SANS_SERIF to R.string.settings_font_sans,
+                    ReaderFontFamily.MONOSPACE to R.string.settings_font_mono,
+                ).forEach { (family, labelRes) ->
+                    FilterChip(
+                        selected = settings.fontFamily == family,
+                        onClick = { onUpdateSettings { it.copy(fontFamily = family) } },
+                        label = { Text(stringResource(labelRes)) },
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Toggles: Status bar & Volume key navigation
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.settings_show_status_bar),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_show_status_bar_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                androidx.compose.material3.Switch(
+                    checked = settings.showStatusBar,
+                    onCheckedChange = { checked ->
+                        onUpdateSettings { it.copy(showStatusBar = checked) }
+                    },
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.settings_volume_keys),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_volume_keys_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                androidx.compose.material3.Switch(
+                    checked = settings.volumeKeyNavigation,
+                    onCheckedChange = { checked ->
+                        onUpdateSettings { it.copy(volumeKeyNavigation = checked) }
+                    },
+                )
             }
         }
     }

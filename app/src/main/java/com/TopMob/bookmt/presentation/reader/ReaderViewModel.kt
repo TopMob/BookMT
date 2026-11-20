@@ -9,8 +9,10 @@ import com.TopMob.bookmt.data.tts.DefaultVoices
 import com.TopMob.bookmt.domain.model.Bookmark
 import com.TopMob.bookmt.domain.model.BookmarkType
 import com.TopMob.bookmt.domain.model.ReaderSettings
+import com.TopMob.bookmt.domain.model.ReadingSpeedEstimator
 import com.TopMob.bookmt.domain.repository.BookRepository
 import com.TopMob.bookmt.domain.repository.ReaderSettingsRepository
+import com.TopMob.bookmt.domain.usecase.ExportAnnotationsUseCase
 import com.TopMob.bookmt.domain.usecase.ManageBookmarksUseCase
 import com.TopMob.bookmt.domain.usecase.OpenBookUseCase
 import com.TopMob.bookmt.domain.usecase.ReadAloudUseCase
@@ -27,6 +29,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import kotlin.math.absoluteValue
 
 /**
  * Owns the entire reading session for a single book: content loading + pagination (off the main
@@ -57,6 +60,11 @@ class ReaderViewModel @Inject constructor(
 
     /** Wall-clock start of the current foreground reading session, or null when paused. */
     private var sessionStartMs: Long? = null
+
+    private val readingSpeedEstimator = ReadingSpeedEstimator()
+    private val exportAnnotationsUseCase = ExportAnnotationsUseCase()
+    private var lastPageTurnTimestampMs: Long = System.currentTimeMillis()
+    private var lastRecordedOffset: Int = 0
 
     init {
         observeSettings()
@@ -103,12 +111,25 @@ class ReaderViewModel @Inject constructor(
                 val pages = withContext(dispatchers.default) {
                     ReaderPaginator.paginate(content, charBudget = 1500)
                 }
+                lastRecordedOffset = startOffset
+                lastPageTurnTimestampMs = System.currentTimeMillis()
+
+                val chapter = content.chapterAt(startOffset)
+                val chapterEnd = chapter?.let { it.startOffset + it.text.length } ?: startOffset
+                val charsInChapterRemaining = (chapterEnd - startOffset).coerceAtLeast(0)
+                val charsInBookRemaining = (content.totalLength - startOffset).coerceAtLeast(0)
+                val chapterMinutes = readingSpeedEstimator.estimateMinutesRemainingForChars(charsInChapterRemaining)
+                val bookMinutes = readingSpeedEstimator.estimateMinutesRemainingForChars(charsInBookRemaining)
+
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         content = content,
                         pages = pages,
                         currentOffset = startOffset,
+                        wordsPerMinute = readingSpeedEstimator.calculateWpm(),
+                        minutesRemainingInChapter = chapterMinutes,
+                        minutesRemainingInBook = bookMinutes,
                     )
                 }
             }
@@ -125,8 +146,7 @@ class ReaderViewModel @Inject constructor(
 
     /** Used by scroll mode, which reports the top-most visible character offset. */
     fun onScrollOffsetChanged(offset: Int) {
-        _uiState.update { it.copy(currentOffset = offset) }
-        scheduleProgressSave(offset)
+        updatePositionAndEstimates(offset)
     }
 
     fun onPrevPage() {
@@ -170,8 +190,50 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun jumpToOffset(offset: Int) {
-        _uiState.update { it.copy(currentOffset = offset) }
-        scheduleProgressSave(offset)
+        updatePositionAndEstimates(offset)
+    }
+
+    private fun updatePositionAndEstimates(newOffset: Int) {
+        val now = System.currentTimeMillis()
+        val deltaMs = now - lastPageTurnTimestampMs
+        lastPageTurnTimestampMs = now
+
+        val state = _uiState.value
+        val content = state.content
+        if (content != null && newOffset != lastRecordedOffset) {
+            val charsRead = (newOffset - lastRecordedOffset).absoluteValue
+            val wordsRead = (charsRead / 5.5).toInt()
+            readingSpeedEstimator.recordSample(wordsRead, deltaMs)
+            lastRecordedOffset = newOffset
+
+            val chapter = content.chapterAt(newOffset)
+            val chapterEnd = chapter?.let { it.startOffset + it.text.length } ?: newOffset
+            val charsInChapterRemaining = (chapterEnd - newOffset).coerceAtLeast(0)
+            val charsInBookRemaining = (content.totalLength - newOffset).coerceAtLeast(0)
+
+            val wpm = readingSpeedEstimator.calculateWpm()
+            val chapterMinutes = readingSpeedEstimator.estimateMinutesRemainingForChars(charsInChapterRemaining)
+            val bookMinutes = readingSpeedEstimator.estimateMinutesRemainingForChars(charsInBookRemaining)
+
+            _uiState.update {
+                it.copy(
+                    currentOffset = newOffset,
+                    wordsPerMinute = wpm,
+                    minutesRemainingInChapter = chapterMinutes,
+                    minutesRemainingInBook = bookMinutes,
+                )
+            }
+        } else {
+            _uiState.update { it.copy(currentOffset = newOffset) }
+        }
+        scheduleProgressSave(newOffset)
+    }
+
+    fun exportAnnotations(onExported: (String) -> Unit) {
+        val book = _uiState.value.book ?: return
+        val annotations = _uiState.value.bookmarks
+        val markdown = exportAnnotationsUseCase(book, annotations)
+        onExported(markdown)
     }
 
     fun saveProgressImmediate() {

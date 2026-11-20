@@ -20,6 +20,10 @@ data class ReaderSettings(
     val keepScreenOn: Boolean = true,
     /** When false the bottom bar hides the seek slider and shows only the page number. */
     val showProgressSlider: Boolean = true,
+    /** Shows unobtrusive header (chapter, time, battery) and footer (pages, time left). */
+    val showStatusBar: Boolean = true,
+    /** When true, hardware volume up/down buttons turn pages forward/backward. */
+    val volumeKeyNavigation: Boolean = false,
     /** Absolute path to a user-supplied TTF/OTF font; overrides [fontFamily] when set. */
     val customFontPath: String? = null,
 ) {

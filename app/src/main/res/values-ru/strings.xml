@@ -121,6 +121,18 @@
     <string name="reader_custom_font_default">Встроенный шрифт</string>
     <string name="reader_custom_font_pick">Выбрать шрифт…</string>
     <string name="reader_custom_font_clear">Сбросить</string>
+    <string name="settings_font_family">Гарнитура шрифта</string>
+    <string name="settings_font_serif">С засечками</string>
+    <string name="settings_font_sans">Без засечек</string>
+    <string name="settings_font_mono">Моноширинный</string>
+    <string name="settings_show_status_bar">Статус-бар</string>
+    <string name="settings_show_status_bar_desc">Показывать главу, часы, батарею и оставшееся время</string>
+    <string name="settings_volume_keys">Кнопки громкости</string>
+    <string name="settings_volume_keys_desc">Перелистывать страницы кнопками громкости</string>
+    <string name="reader_time_remaining_min">осталось %1$d мин</string>
+    <string name="reader_time_remaining_hours_min">осталось %1$d ч %2$d мин</string>
+    <string name="reader_export_notes">Экспорт цитат</string>
+    <string name="reader_notes_copied">Цитаты скопированы в буфер обмена</string>
 
     <!-- Generic -->
     <string name="action_back">Назад</string>

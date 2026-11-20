@@ -121,6 +121,18 @@
     <string name="reader_custom_font_default">Built-in font</string>
     <string name="reader_custom_font_pick">Choose font…</string>
     <string name="reader_custom_font_clear">Reset</string>
+    <string name="settings_font_family">Font family</string>
+    <string name="settings_font_serif">Serif</string>
+    <string name="settings_font_sans">Sans-serif</string>
+    <string name="settings_font_mono">Monospace</string>
+    <string name="settings_show_status_bar">Status bar</string>
+    <string name="settings_show_status_bar_desc">Show chapter, clock, battery and time remaining</string>
+    <string name="settings_volume_keys">Volume keys</string>
+    <string name="settings_volume_keys_desc">Flip pages using volume buttons</string>
+    <string name="reader_time_remaining_min">%1$d min left</string>
+    <string name="reader_time_remaining_hours_min">%1$d h %2$d min left</string>
+    <string name="reader_export_notes">Export notes</string>
+    <string name="reader_notes_copied">Notes copied to clipboard</string>
 
     <!-- Generic -->
     <string name="action_back">Back</string>

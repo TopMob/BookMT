@@ -42,6 +42,9 @@ fun PagedReaderContent(
     colors: ReaderColors,
     horizontalPadding: Int,
     verticalPadding: Int,
+    showStatusBar: Boolean = true,
+    chapterTitle: String? = null,
+    minutesRemaining: Int? = null,
     onOffsetChanged: (Int) -> Unit,
     onTapZone: (ReaderTapZone) -> Unit,
     modifier: Modifier = Modifier,
@@ -76,62 +79,91 @@ fun PagedReaderContent(
             }
     }
 
-    HorizontalPager(
-        state = pagerState,
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(colors.background)
-            .pointerInput(pages.size) {
-                detectTapGestures { offset ->
-                    val zone = ReaderTapZone.fromX(offset.x, size.width.toFloat())
-                    when (zone) {
-                        ReaderTapZone.LEFT -> {
-                            if (pagerState.currentPage > 0) {
-                                scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
-                            }
-                        }
-                        ReaderTapZone.RIGHT -> {
-                            if (pagerState.currentPage < pages.lastIndex) {
-                                scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
-                            }
-                        }
-                        ReaderTapZone.CENTER -> onTapZone(ReaderTapZone.CENTER)
-                    }
-                }
-            },
-    ) { pageIndex ->
-        val page = pages.getOrNull(pageIndex)
-        Box(
+    ) {
+        HorizontalPager(
+            state = pagerState,
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer {
-                    // Realistic page-turning depth & alpha curve
-                    val pageOffset = (pagerState.currentPage - pageIndex) + pagerState.currentPageOffsetFraction
-                    if (pageOffset > 0f) {
-                        // Turning page away to the left
-                        alpha = (1f - pageOffset * 0.35f).coerceIn(0.5f, 1f)
-                        scaleX = (1f - pageOffset * 0.05f).coerceIn(0.95f, 1f)
-                        scaleY = (1f - pageOffset * 0.05f).coerceIn(0.95f, 1f)
-                    } else if (pageOffset < 0f) {
-                        // Incoming page from right
-                        val absOffset = pageOffset.absoluteValue
-                        alpha = (1f - absOffset * 0.2f).coerceIn(0.8f, 1f)
+                .pointerInput(pages.size) {
+                    detectTapGestures { offset ->
+                        val zone = ReaderTapZone.fromX(offset.x, size.width.toFloat())
+                        when (zone) {
+                            ReaderTapZone.LEFT -> {
+                                if (pagerState.currentPage > 0) {
+                                    scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
+                                }
+                            }
+                            ReaderTapZone.RIGHT -> {
+                                if (pagerState.currentPage < pages.lastIndex) {
+                                    scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+                                }
+                            }
+                            ReaderTapZone.CENTER -> onTapZone(ReaderTapZone.CENTER)
+                        }
                     }
+                },
+        ) { pageIndex ->
+            val page = pages.getOrNull(pageIndex)
+            val topPad = if (showStatusBar) (verticalPadding + 20).dp else verticalPadding.dp
+            val botPad = if (showStatusBar) (verticalPadding + 28).dp else (verticalPadding + 12).dp
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        // Realistic page-turning depth & alpha curve
+                        val pageOffset = (pagerState.currentPage - pageIndex) + pagerState.currentPageOffsetFraction
+                        if (pageOffset > 0f) {
+                            // Turning page away to the left
+                            alpha = (1f - pageOffset * 0.35f).coerceIn(0.5f, 1f)
+                            scaleX = (1f - pageOffset * 0.05f).coerceIn(0.95f, 1f)
+                            scaleY = (1f - pageOffset * 0.05f).coerceIn(0.95f, 1f)
+                        } else if (pageOffset < 0f) {
+                            // Incoming page from right
+                            val absOffset = pageOffset.absoluteValue
+                            alpha = (1f - absOffset * 0.2f).coerceIn(0.8f, 1f)
+                        }
+                    }
+                    .padding(
+                        start = horizontalPadding.dp,
+                        end = horizontalPadding.dp,
+                        top = topPad,
+                        bottom = botPad,
+                    )
+            ) {
+                if (page != null) {
+                    Text(
+                        text = page.text,
+                        style = textStyle,
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 }
-                .padding(
-                    start = horizontalPadding.dp,
-                    end = horizontalPadding.dp,
-                    top = verticalPadding.dp,
-                    bottom = (verticalPadding + 12).dp, // safe margin buffer
-                )
-        ) {
-            if (page != null) {
-                Text(
-                    text = page.text,
-                    style = textStyle,
-                    modifier = Modifier.fillMaxSize(),
-                )
             }
+        }
+
+        if (showStatusBar) {
+            ReaderTopStatusBar(
+                chapterTitle = chapterTitle,
+                colors = colors,
+                modifier = Modifier
+                    .align(androidx.compose.ui.Alignment.TopCenter)
+                    .padding(top = 4.dp),
+            )
+            val curPage = (pagerState.currentPage + 1).coerceAtMost(pages.size)
+            val pct = if (pages.isNotEmpty()) ((curPage.toFloat() / pages.size) * 100).toInt() else 0
+            ReaderBottomStatusBar(
+                currentPage = curPage,
+                totalPages = pages.size,
+                progressPercent = pct,
+                minutesRemaining = minutesRemaining,
+                colors = colors,
+                modifier = Modifier
+                    .align(androidx.compose.ui.Alignment.BottomCenter)
+                    .padding(bottom = 4.dp),
+            )
         }
     }
 }
@@ -147,6 +179,9 @@ fun ScrollReaderContent(
     horizontalPadding: Int,
     verticalPadding: Int,
     listState: LazyListState,
+    showStatusBar: Boolean = true,
+    chapterTitle: String? = null,
+    minutesRemaining: Int? = null,
     onOffsetChanged: (Int) -> Unit,
     onTapZone: (ReaderTapZone) -> Unit,
     modifier: Modifier = Modifier,
@@ -159,26 +194,62 @@ fun ScrollReaderContent(
             }
     }
 
-    LazyColumn(
-        state = listState,
-        contentPadding = PaddingValues(horizontal = horizontalPadding.dp, vertical = verticalPadding.dp),
+    val topPad = if (showStatusBar) (verticalPadding + 20).dp else verticalPadding.dp
+    val botPad = if (showStatusBar) (verticalPadding + 28).dp else verticalPadding.dp
+
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(colors.background)
-            .pointerInput(Unit) {
-                detectTapGestures { offset ->
-                    onTapZone(ReaderTapZone.fromX(offset.x, size.width.toFloat()))
-                }
-            },
     ) {
-        items(
-            count = content.chapters.size,
-            key = { content.chapters[it].index },
-        ) { index ->
-            Text(
-                text = content.chapters[index].text,
-                style = textStyle,
-                modifier = Modifier.padding(bottom = 16.dp),
+        LazyColumn(
+            state = listState,
+            contentPadding = PaddingValues(
+                start = horizontalPadding.dp,
+                end = horizontalPadding.dp,
+                top = topPad,
+                bottom = botPad,
+            ),
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTapGestures { offset ->
+                        onTapZone(ReaderTapZone.fromX(offset.x, size.width.toFloat()))
+                    }
+                },
+        ) {
+            items(
+                count = content.chapters.size,
+                key = { content.chapters[it].index },
+            ) { index ->
+                Text(
+                    text = content.chapters[index].text,
+                    style = textStyle,
+                    modifier = Modifier.padding(bottom = 16.dp),
+                )
+            }
+        }
+
+        if (showStatusBar) {
+            ReaderTopStatusBar(
+                chapterTitle = chapterTitle,
+                colors = colors,
+                modifier = Modifier
+                    .align(androidx.compose.ui.Alignment.TopCenter)
+                    .padding(top = 4.dp),
+            )
+            val currentIdx = listState.firstVisibleItemIndex + 1
+            val totalCh = content.chapters.size.coerceAtLeast(1)
+            val pct = ((currentIdx.toFloat() / totalCh) * 100).toInt()
+            ReaderBottomStatusBar(
+                currentPage = currentIdx,
+                totalPages = totalCh,
+                progressPercent = pct,
+                minutesRemaining = minutesRemaining,
+                colors = colors,
+                modifier = Modifier
+                    .align(androidx.compose.ui.Alignment.BottomCenter)
+                    .padding(bottom = 4.dp),
             )
         }
     }
