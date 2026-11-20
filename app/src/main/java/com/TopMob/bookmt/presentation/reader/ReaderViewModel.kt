@@ -169,6 +169,13 @@ class ReaderViewModel @Inject constructor(
         jumpToOffset(pages[targetIndex].startOffset)
     }
 
+    fun onSeekToPage(pageNumber: Int) {
+        val pages = _uiState.value.pages
+        if (pages.isEmpty()) return
+        val targetIndex = (pageNumber - 1).coerceIn(0, pages.lastIndex)
+        jumpToOffset(pages[targetIndex].startOffset)
+    }
+
     fun onPrevChapter() {
         val content = _uiState.value.content ?: return
         val currentOffset = _uiState.value.currentOffset

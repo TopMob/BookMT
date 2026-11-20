@@ -165,8 +165,10 @@ fun ReaderScreen(
                 totalPages = state.totalPages,
                 ttsStatus = state.tts.status,
                 activeVoiceId = state.tts.activeVoiceId,
+                showProgressSlider = state.settings.showProgressSlider,
                 onPrevPage = viewModel::onPrevPage,
                 onNextPage = viewModel::onNextPage,
+                onSeekToPage = viewModel::onSeekToPage,
                 onAddBookmark = viewModel::onAddBookmarkAtCurrentPage,
                 onPlayPauseTts = {
                     when (state.tts.status) {
