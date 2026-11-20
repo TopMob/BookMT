@@ -51,6 +51,15 @@ class GetBooksUseCaseTest {
             Resource.Error(NotImplementedError())
         override suspend fun updateProgress(bookId: Long, progress: Float, position: Int) = Unit
         override suspend fun updateTags(bookId: Long, tags: List<String>) = Unit
+        override suspend fun updateMetadata(
+            bookId: Long,
+            title: String,
+            author: String?,
+            description: String?,
+            coverImagePath: String?,
+            tags: List<String>,
+        ) = Unit
+        override suspend fun addReadingTime(bookId: Long, deltaMs: Long) = Unit
         override suspend fun deleteBook(bookId: Long) = Unit
     }
 }
