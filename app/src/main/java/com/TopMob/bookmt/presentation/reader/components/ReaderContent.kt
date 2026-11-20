@@ -13,6 +13,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
@@ -21,6 +22,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.TopMob.bookmt.domain.model.BookContent
+import com.TopMob.bookmt.domain.model.Bookmark
+import com.TopMob.bookmt.presentation.reader.HighlightAnnotator
 import com.TopMob.bookmt.presentation.reader.Page
 import com.TopMob.bookmt.presentation.reader.ReaderTapZone
 import com.TopMob.bookmt.presentation.theme.ReaderColors
@@ -45,6 +48,7 @@ fun PagedReaderContent(
     showStatusBar: Boolean = true,
     chapterTitle: String? = null,
     minutesRemaining: Int? = null,
+    bookmarks: List<Bookmark> = emptyList(),
     onOffsetChanged: (Int) -> Unit,
     onTapZone: (ReaderTapZone) -> Unit,
     modifier: Modifier = Modifier,
@@ -135,8 +139,17 @@ fun PagedReaderContent(
                     )
             ) {
                 if (page != null) {
+                    val annotatedText = remember(page.text, page.startOffset, page.endOffset, bookmarks, colors.highlightDefault) {
+                        HighlightAnnotator.annotate(
+                            text = page.text,
+                            startOffset = page.startOffset,
+                            endOffset = page.endOffset,
+                            bookmarks = bookmarks,
+                            defaultHighlightColor = colors.highlightDefault,
+                        )
+                    }
                     Text(
-                        text = page.text,
+                        text = annotatedText,
                         style = textStyle,
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -182,6 +195,7 @@ fun ScrollReaderContent(
     showStatusBar: Boolean = true,
     chapterTitle: String? = null,
     minutesRemaining: Int? = null,
+    bookmarks: List<Bookmark> = emptyList(),
     onOffsetChanged: (Int) -> Unit,
     onTapZone: (ReaderTapZone) -> Unit,
     modifier: Modifier = Modifier,
@@ -222,8 +236,18 @@ fun ScrollReaderContent(
                 count = content.chapters.size,
                 key = { content.chapters[it].index },
             ) { index ->
+                val ch = content.chapters[index]
+                val annotatedText = remember(ch.text, ch.startOffset, bookmarks, colors.highlightDefault) {
+                    HighlightAnnotator.annotate(
+                        text = ch.text,
+                        startOffset = ch.startOffset,
+                        endOffset = ch.startOffset + ch.text.length,
+                        bookmarks = bookmarks,
+                        defaultHighlightColor = colors.highlightDefault,
+                    )
+                }
                 Text(
-                    text = content.chapters[index].text,
+                    text = annotatedText,
                     style = textStyle,
                     modifier = Modifier.padding(bottom = 16.dp),
                 )
