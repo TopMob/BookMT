@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
@@ -52,6 +53,7 @@ fun ReaderTopBar(
     onOpenToc: () -> Unit,
     onOpenNotes: () -> Unit,
     onToggleTheme: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     AnimatedVisibility(
         visible = visible,
@@ -89,6 +91,12 @@ fun ReaderTopBar(
                         contentDescription = stringResource(R.string.settings_theme),
                     )
                 }
+                IconButton(onClick = onOpenSettings) {
+                    Icon(
+                        Icons.Filled.Settings,
+                        contentDescription = stringResource(R.string.reader_settings),
+                    )
+                }
             },
         )
     }
@@ -105,8 +113,8 @@ fun ReaderBottomBar(
     totalPages: Int,
     ttsStatus: TtsStatus,
     activeVoiceId: String?,
-    onPrevChapter: () -> Unit,
-    onNextChapter: () -> Unit,
+    onPrevPage: () -> Unit,
+    onNextPage: () -> Unit,
     onAddBookmark: () -> Unit,
     onPlayPauseTts: () -> Unit,
     onStopTts: () -> Unit,
@@ -127,7 +135,7 @@ fun ReaderBottomBar(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    IconButton(onClick = onPrevChapter) {
+                    IconButton(onClick = onPrevPage) {
                         Icon(
                             Icons.Filled.SkipPrevious,
                             contentDescription = stringResource(R.string.action_previous),
@@ -137,7 +145,7 @@ fun ReaderBottomBar(
                         text = stringResource(R.string.reader_page_indicator, currentPage, totalPages.coerceAtLeast(1)),
                         style = MaterialTheme.typography.labelMedium,
                     )
-                    IconButton(onClick = onNextChapter) {
+                    IconButton(onClick = onNextPage) {
                         Icon(
                             Icons.Filled.SkipNext,
                             contentDescription = stringResource(R.string.action_next),

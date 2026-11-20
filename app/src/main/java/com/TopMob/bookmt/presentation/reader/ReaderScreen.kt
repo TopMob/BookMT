@@ -40,7 +40,9 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.TopMob.bookmt.domain.tts.TtsStatus
 import com.TopMob.bookmt.presentation.reader.components.NotesBookmarksPanel
+import com.TopMob.bookmt.presentation.reader.components.PagedReaderContent
 import com.TopMob.bookmt.presentation.reader.components.ReaderBottomBar
+import com.TopMob.bookmt.presentation.reader.components.ReaderSettingsSheet
 import com.TopMob.bookmt.presentation.reader.components.ReaderSideDrawer
 import com.TopMob.bookmt.presentation.reader.components.ReaderTopBar
 import com.TopMob.bookmt.presentation.reader.components.ScrollReaderContent
@@ -70,11 +72,16 @@ fun ReaderScreen(
     val scope = rememberCoroutineScope()
 
     VolumeKeyScroll { key ->
-        val scrollAmount = listState.layoutInfo.viewportSize.height * 1.0f
-        if (scrollAmount > 0) {
-            scope.launch {
-                if (key == VolumeKey.UP) listState.animateScrollBy(-scrollAmount)
-                else listState.animateScrollBy(scrollAmount)
+        if (state.settings.readingMode == com.TopMob.bookmt.domain.model.ReadingMode.PAGED) {
+            if (key == VolumeKey.UP) viewModel.onPrevPage()
+            else viewModel.onNextPage()
+        } else {
+            val scrollAmount = listState.layoutInfo.viewportSize.height * 1.0f
+            if (scrollAmount > 0) {
+                scope.launch {
+                    if (key == VolumeKey.UP) listState.animateScrollBy(-scrollAmount)
+                    else listState.animateScrollBy(scrollAmount)
+                }
             }
         }
     }
@@ -92,12 +99,20 @@ fun ReaderScreen(
             onTapZone = { zone ->
                 when (zone) {
                     ReaderTapZone.LEFT -> {
-                        val scrollAmount = listState.layoutInfo.viewportSize.height * 1.0f
-                        if (scrollAmount > 0) scope.launch { listState.animateScrollBy(-scrollAmount) }
+                        if (state.settings.readingMode == com.TopMob.bookmt.domain.model.ReadingMode.PAGED) {
+                            viewModel.onPrevPage()
+                        } else {
+                            val scrollAmount = listState.layoutInfo.viewportSize.height * 1.0f
+                            if (scrollAmount > 0) scope.launch { listState.animateScrollBy(-scrollAmount) }
+                        }
                     }
                     ReaderTapZone.RIGHT -> {
-                        val scrollAmount = listState.layoutInfo.viewportSize.height * 1.0f
-                        if (scrollAmount > 0) scope.launch { listState.animateScrollBy(scrollAmount) }
+                        if (state.settings.readingMode == com.TopMob.bookmt.domain.model.ReadingMode.PAGED) {
+                            viewModel.onNextPage()
+                        } else {
+                            val scrollAmount = listState.layoutInfo.viewportSize.height * 1.0f
+                            if (scrollAmount > 0) scope.launch { listState.animateScrollBy(scrollAmount) }
+                        }
                     }
                     ReaderTapZone.CENTER -> viewModel.onToggleControls()
                 }
@@ -128,21 +143,18 @@ fun ReaderScreen(
                 }
                 viewModel.onUpdateSettings { it.copy(theme = nextTheme) }
             },
+            onOpenSettings = { viewModel.onShowOverlay(ReaderOverlay.SETTINGS) },
         )
 
         Box(modifier = Modifier.align(Alignment.BottomCenter)) {
-            val charsPerPage = 1500
-            val fakeCurrentPage = (state.currentOffset / charsPerPage) + 1
-            val fakeTotalPages = (state.totalLength / charsPerPage) + 1
-
             ReaderBottomBar(
                 visible = state.showControls,
-                currentPage = fakeCurrentPage,
-                totalPages = fakeTotalPages,
+                currentPage = state.currentPageIndex + 1,
+                totalPages = state.totalPages,
                 ttsStatus = state.tts.status,
                 activeVoiceId = state.tts.activeVoiceId,
-                onPrevChapter = viewModel::onPrevChapter,
-                onNextChapter = viewModel::onNextChapter,
+                onPrevPage = viewModel::onPrevPage,
+                onNextPage = viewModel::onNextPage,
                 onAddBookmark = viewModel::onAddBookmarkAtCurrentPage,
                 onPlayPauseTts = {
                     when (state.tts.status) {
@@ -152,6 +164,15 @@ fun ReaderScreen(
                     }
                 },
                 onStopTts = viewModel::onStopTts,
+            )
+        }
+
+        // Reader settings modal bottom sheet
+        if (state.overlay == ReaderOverlay.SETTINGS) {
+            ReaderSettingsSheet(
+                settings = state.settings,
+                onUpdateSettings = viewModel::onUpdateSettings,
+                onDismiss = viewModel::onDismissOverlay,
             )
         }
 
@@ -229,6 +250,18 @@ private fun ReaderSurface(
                 modifier = Modifier.align(Alignment.Center),
             )
         }
+
+        state.settings.readingMode == com.TopMob.bookmt.domain.model.ReadingMode.PAGED -> PagedReaderContent(
+            pages = state.pages,
+            currentPageIndex = state.currentPageIndex,
+            textStyle = state.settings.toTextStyle(colors.text),
+            colors = colors,
+            horizontalPadding = state.settings.horizontalMarginDp,
+            verticalPadding = state.settings.verticalMarginDp,
+            onOffsetChanged = onScrollOffsetChanged,
+            onTapZone = onTapZone,
+            modifier = modifier,
+        )
 
         else -> ScrollReaderContent(
             content = content,

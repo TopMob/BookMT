@@ -15,6 +15,7 @@ data class ReaderUiState(
     val isLoading: Boolean = true,
     val book: Book? = null,
     val content: BookContent? = null,
+    val pages: List<Page> = emptyList(),
     val currentOffset: Int = 0,
     val settings: ReaderSettings = ReaderSettings(),
     val bookmarks: List<Bookmark> = emptyList(),
@@ -30,4 +31,10 @@ data class ReaderUiState(
 
     val currentChapterTitle: String?
         get() = content?.chapterAt(currentOffset)?.title
+
+    val currentPageIndex: Int
+        get() = ReaderPaginator.pageIndexForOffset(pages, currentOffset)
+
+    val totalPages: Int
+        get() = pages.size.coerceAtLeast(1)
 }

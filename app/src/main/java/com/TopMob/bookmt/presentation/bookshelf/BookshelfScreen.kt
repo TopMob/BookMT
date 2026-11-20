@@ -310,20 +310,6 @@ fun BookshelfScreen(
                     }
                 }
             }
-
-            // Continue Reading Banner/Button
-            val continueReadingBook = remember(state.books) {
-                state.books.filter { it.progress > 0f && it.progress < 1f }
-                    .maxByOrNull { it.lastReadTimestamp }
-            }
-            if (continueReadingBook != null && !selectionMode) {
-                ExtendedFloatingActionButton(
-                    onClick = { onBookClick(continueReadingBook.id) },
-                    icon = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
-                    text = { Text(stringResource(R.string.continue_reading)) },
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp)
-                )
-            }
         }
     }
     }
