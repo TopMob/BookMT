@@ -12,6 +12,7 @@
     <string name="action_filter">Фильтр</string>
     <string name="action_settings">Настройки</string>
     <string name="action_search">Поиск</string>
+    <string name="action_menu">Меню</string>
     <string name="action_more">Ещё</string>
 
     <!-- Book context menu (long-press) -->
@@ -106,7 +107,11 @@
     <string name="reader_highlight">Выделить</string>
     <string name="reader_table_of_contents">Содержание</string>
     <string name="reader_play_tts">Озвучить</string>
+    <string name="reader_pause_tts">Пауза</string>
     <string name="reader_stop_tts">Стоп</string>
+    <string name="no_bookmarks_yet">Пока нет закладок</string>
+    <string name="reader_action_prev_page">Предыдущая страница</string>
+    <string name="reader_action_next_page">Следующая страница</string>
     <string name="reader_show_slider">Ползунок прогресса</string>
     <string name="reader_show_slider_desc">Показывать ползунок (выкл. = только номер страницы)</string>
     <string name="reader_page_indicator">Стр. %1$d / %2$d</string>

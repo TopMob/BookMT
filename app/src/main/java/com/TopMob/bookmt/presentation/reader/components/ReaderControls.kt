@@ -138,7 +138,7 @@ fun ReaderBottomBar(
                     IconButton(onClick = onPrevPage) {
                         Icon(
                             Icons.Filled.SkipPrevious,
-                            contentDescription = stringResource(R.string.action_previous),
+                            contentDescription = stringResource(R.string.reader_action_prev_page),
                         )
                     }
                     Text(
@@ -148,7 +148,7 @@ fun ReaderBottomBar(
                     IconButton(onClick = onNextPage) {
                         Icon(
                             Icons.Filled.SkipNext,
-                            contentDescription = stringResource(R.string.action_next),
+                            contentDescription = stringResource(R.string.reader_action_next_page),
                         )
                     }
                 }
@@ -177,7 +177,7 @@ fun ReaderBottomBar(
                             if (ttsStatus == TtsStatus.PLAYING) {
                                 Icon(
                                     Icons.Filled.Pause,
-                                    contentDescription = stringResource(R.string.reader_stop_tts),
+                                    contentDescription = stringResource(R.string.reader_pause_tts),
                                 )
                             } else {
                                 Icon(

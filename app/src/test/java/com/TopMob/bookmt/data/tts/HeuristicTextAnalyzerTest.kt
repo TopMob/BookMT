@@ -42,4 +42,12 @@ class HeuristicTextAnalyzerTest {
         val segments = analyzer.analyze(text, baseOffset = base)
         assertEquals(base, segments.first().startOffset)
     }
+
+    @Test
+    fun `russian guillemets quotes are recognized as dialogue`() = runTest {
+        val text = "Он остановился. «Кто здесь?» — спросил он тихо."
+        val segments = analyzer.analyze(text)
+        assertTrue(segments.any { it.role != SpeakerRole.NARRATOR && it.text.contains("Кто здесь?") })
+        assertEquals(text, segments.joinToString("") { it.text })
+    }
 }

@@ -55,7 +55,9 @@ fun ReaderScreen(
     viewModel: ReaderViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val colors = ReaderColors.forTheme(state.settings.theme)
+    val colors = androidx.compose.runtime.remember(state.settings.theme) {
+        ReaderColors.forTheme(state.settings.theme)
+    }
     val context = LocalContext.current
 
     KeepScreenOn(enabled = state.settings.keepScreenOn)
@@ -72,15 +74,17 @@ fun ReaderScreen(
     val scope = rememberCoroutineScope()
 
     VolumeKeyScroll { key ->
-        if (state.settings.readingMode == com.TopMob.bookmt.domain.model.ReadingMode.PAGED) {
-            if (key == VolumeKey.UP) viewModel.onPrevPage()
-            else viewModel.onNextPage()
-        } else {
-            val scrollAmount = listState.layoutInfo.viewportSize.height * 1.0f
-            if (scrollAmount > 0) {
-                scope.launch {
-                    if (key == VolumeKey.UP) listState.animateScrollBy(-scrollAmount)
-                    else listState.animateScrollBy(scrollAmount)
+        if (state.tts.status != TtsStatus.PLAYING) {
+            if (state.settings.readingMode == com.TopMob.bookmt.domain.model.ReadingMode.PAGED) {
+                if (key == VolumeKey.UP) viewModel.onPrevPage()
+                else viewModel.onNextPage()
+            } else {
+                val scrollAmount = listState.layoutInfo.viewportSize.height * 1.0f
+                if (scrollAmount > 0) {
+                    scope.launch {
+                        if (key == VolumeKey.UP) listState.animateScrollBy(-scrollAmount)
+                        else listState.animateScrollBy(scrollAmount)
+                    }
                 }
             }
         }
@@ -137,7 +141,8 @@ fun ReaderScreen(
             onOpenNotes = { viewModel.onShowOverlay(ReaderOverlay.NOTES) },
             onToggleTheme = {
                 val nextTheme = when (state.settings.theme) {
-                    com.TopMob.bookmt.domain.model.ReaderTheme.DAY -> com.TopMob.bookmt.domain.model.ReaderTheme.NIGHT
+                    com.TopMob.bookmt.domain.model.ReaderTheme.DAY -> com.TopMob.bookmt.domain.model.ReaderTheme.SEPIA
+                    com.TopMob.bookmt.domain.model.ReaderTheme.SEPIA -> com.TopMob.bookmt.domain.model.ReaderTheme.NIGHT
                     com.TopMob.bookmt.domain.model.ReaderTheme.NIGHT -> com.TopMob.bookmt.domain.model.ReaderTheme.AMOLED_BLACK
                     else -> com.TopMob.bookmt.domain.model.ReaderTheme.DAY
                 }

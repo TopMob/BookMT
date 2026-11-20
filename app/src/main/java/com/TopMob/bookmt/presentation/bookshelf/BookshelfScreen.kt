@@ -100,7 +100,9 @@ fun BookshelfScreen(
     val scope = rememberCoroutineScope()
 
     val selectionMode = selectedIds.isNotEmpty()
-    val selectedBooks = state.books.filter { it.id in selectedIds }
+    val selectedBooks = remember(state.books, selectedIds) {
+        state.books.filter { it.id in selectedIds }
+    }
 
     fun toggleSelection(id: Long) {
         selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
@@ -172,15 +174,6 @@ fun BookshelfScreen(
                         scope.launch { drawerState.close() }
                     }
                 )
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Filled.Bookmark, contentDescription = null) },
-                    label = { Text(stringResource(R.string.bookmarks)) },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        // TODO: Implement global bookmarks screen
-                    }
-                )
                 HorizontalDivider()
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
@@ -226,7 +219,7 @@ fun BookshelfScreen(
                     title = { Text(stringResource(R.string.bookshelf_title)) },
                     navigationIcon = {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Filled.Menu, contentDescription = "Меню")
+                            Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.action_menu))
                         }
                     },
                     actions = {
@@ -274,7 +267,7 @@ fun BookshelfScreen(
 
                 state.viewMode == BookshelfViewMode.GRID -> LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 120.dp),
-                    contentPadding = PaddingValues(8.dp),
+                    contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 88.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(items = state.books, key = { it.id }) { book ->
@@ -292,7 +285,7 @@ fun BookshelfScreen(
                 }
 
                 else -> LazyColumn(
-                    contentPadding = PaddingValues(12.dp),
+                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 88.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(items = state.books, key = { it.id }) { book ->

@@ -16,9 +16,9 @@ import org.junit.Test
 class GetBooksUseCaseTest {
 
     private val sample = listOf(
-        Book(id = 1, uri = "a", title = "Bravo", author = "Zed", progress = 0.5f, addedTimestamp = 100),
-        Book(id = 2, uri = "b", title = "Alpha", author = "Ann", progress = 1.0f, addedTimestamp = 300),
-        Book(id = 3, uri = "c", title = "Charlie", author = "Max", progress = 0.0f, addedTimestamp = 200),
+        Book(id = 1, uri = "a", title = "Bravo", author = "Zed", progress = 0.5f, addedTimestamp = 100, tags = listOf("sci-fi", "fav")),
+        Book(id = 2, uri = "b", title = "Alpha", author = "Ann", progress = 1.0f, addedTimestamp = 300, tags = listOf("fav")),
+        Book(id = 3, uri = "c", title = "Charlie", author = "Max", progress = 0.0f, addedTimestamp = 200, tags = emptyList()),
     )
 
     private val useCase = GetBooksUseCase(FakeBookRepository(sample))
@@ -39,6 +39,24 @@ class GetBooksUseCaseTest {
     fun `search matches title or author case-insensitively`() = runTest {
         val result = useCase(BookQuery(searchQuery = "ann")).first()
         assertEquals(listOf(2L), result.map { it.id })
+    }
+
+    @Test
+    fun `sort by title descending`() = runTest {
+        val result = useCase(BookQuery(sortOrder = BookSortOrder.TITLE, ascending = false)).first()
+        assertEquals(listOf("Charlie", "Bravo", "Alpha"), result.map { it.title })
+    }
+
+    @Test
+    fun `sort by author ascending`() = runTest {
+        val result = useCase(BookQuery(sortOrder = BookSortOrder.AUTHOR, ascending = true)).first()
+        assertEquals(listOf("Ann", "Max", "Zed"), result.map { it.author })
+    }
+
+    @Test
+    fun `filter by tags matches all requested tags`() = runTest {
+        val result = useCase(BookQuery(tags = setOf("fav", "sci-fi"))).first()
+        assertEquals(listOf(1L), result.map { it.id })
     }
 
     private class FakeBookRepository(private val books: List<Book>) : BookRepository {

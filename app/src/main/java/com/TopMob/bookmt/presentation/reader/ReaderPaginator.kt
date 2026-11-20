@@ -83,7 +83,18 @@ object ReaderPaginator {
         if (pages.isEmpty()) return 0
         if (offset <= pages.first().startOffset) return 0
         if (offset >= pages.last().endOffset) return pages.lastIndex
-        val idx = pages.indexOfFirst { offset >= it.startOffset && offset < it.endOffset }
-        return if (idx >= 0) idx else 0
+
+        var low = 0
+        var high = pages.lastIndex
+        while (low <= high) {
+            val mid = (low + high) ushr 1
+            val page = pages[mid]
+            when {
+                offset < page.startOffset -> high = mid - 1
+                offset >= page.endOffset -> low = mid + 1
+                else -> return mid
+            }
+        }
+        return low.coerceIn(0, pages.lastIndex)
     }
 }

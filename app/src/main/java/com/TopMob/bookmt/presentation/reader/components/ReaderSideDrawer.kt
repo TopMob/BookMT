@@ -1,5 +1,6 @@
 package com.TopMob.bookmt.presentation.reader.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -11,11 +12,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import com.TopMob.bookmt.R
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -34,7 +39,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.TopMob.bookmt.R
 import com.TopMob.bookmt.domain.model.Bookmark
 import com.TopMob.bookmt.domain.model.TocEntry
 
@@ -48,7 +52,8 @@ fun ReaderSideDrawer(
     onDismiss: () -> Unit,
     content: @Composable () -> Unit,
 ) {
-    if (!visible) return
+    BackHandler(enabled = visible, onBack = onDismiss)
+
     Box(modifier = Modifier.fillMaxSize()) {
         // Scrim
         AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut()) {
@@ -69,7 +74,8 @@ fun ReaderSideDrawer(
                 tonalElevation = 4.dp,
                 modifier = Modifier
                     .fillMaxHeight()
-                    .width(320.dp),
+                    .width(320.dp)
+                    .windowInsetsPadding(WindowInsets.statusBars),
             ) {
                 content()
             }
@@ -92,7 +98,7 @@ fun NotesBookmarksPanel(
         Spacer(Modifier.padding(4.dp))
         if (bookmarks.isEmpty()) {
             Text(
-                text = "No bookmarks yet.",
+                text = stringResource(R.string.no_bookmarks_yet),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
