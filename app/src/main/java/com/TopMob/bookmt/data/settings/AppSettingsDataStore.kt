@@ -51,8 +51,10 @@ class AppSettingsDataStore(private val context: Context) {
          * Reads the persisted language synchronously. Required by `MainActivity.attachBaseContext`,
          * which runs before Hilt injection is available and must localize the context up front.
          */
-        fun readLanguageBlocking(context: Context): AppLanguage = runBlocking {
-            decodeLanguage(context.appDataStore.data.first()[Keys.LANGUAGE])
-        }
+        fun readLanguageBlocking(context: Context): AppLanguage = runCatching {
+            runBlocking {
+                decodeLanguage(context.appDataStore.data.first()[Keys.LANGUAGE])
+            }
+        }.getOrDefault(AppLanguage.SYSTEM)
     }
 }

@@ -21,7 +21,12 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): BookMTDatabase =
         Room.databaseBuilder(context, BookMTDatabase::class.java, Constants.DATABASE_NAME)
-            // Foreign keys are needed for the bookmark cascade-delete to fire.
+            .addCallback(object : androidx.room.RoomDatabase.Callback() {
+                override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    super.onOpen(db)
+                    db.execSQL("PRAGMA foreign_keys = ON;")
+                }
+            })
             .addMigrations(BookMTDatabase.MIGRATION_1_2)
             .build()
 

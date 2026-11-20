@@ -55,6 +55,7 @@ class Fb2BookParser(
         return try {
         val parser = Xml.newPullParser().apply {
             setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
+            runCatching { setFeature("http://xmlpull.org/v1/doc/features.html#process-docdecl", false) }
             setInput(input, null)
         }
 

@@ -44,8 +44,8 @@ class BackupManager @Inject constructor(
     suspend fun import(source: Uri): Result<Unit> = withContext(dispatchers.io) {
         runCatching {
             checkpoint()
-            deleteWalShm()
             runCatching { database.openHelper.close() }
+            deleteWalShm()
 
             val input = context.contentResolver.openInputStream(source)
                 ?: error("Cannot open input stream")
@@ -56,7 +56,26 @@ class BackupManager @Inject constructor(
                     val targetFile = fileForEntry(entry.name)
                     if (targetFile != null) {
                         targetFile.parentFile?.mkdirs()
-                        targetFile.outputStream().use { out -> zip.copyTo(out) }
+                        targetFile.outputStream().use { out ->
+                            val buffer = ByteArray(8192)
+                            var copied = 0L
+                            while (true) {
+                                val count = zip.read(buffer)
+                                if (count == -1) break
+                                copied += count
+                                if (copied > MAX_RESTORE_FILE_BYTES) {
+                                    throw IllegalStateException("Backup entry exceeds maximum safe size")
+                                }
+                                out.write(buffer, 0, count)
+                            }
+                        }
+                        if (entry.name == DB_ENTRY) {
+                            val header = ByteArray(16)
+                            targetFile.inputStream().use { it.read(header) }
+                            check(header.contentEquals("SQLite format 3\u0000".toByteArray())) {
+                                "Restored database file is corrupted or not a valid SQLite database"
+                            }
+                        }
                         restoredAnything = true
                     }
                     zip.closeEntry()
@@ -93,11 +112,10 @@ class BackupManager @Inject constructor(
         }
         return when {
             normalizedName == DB_ENTRY -> context.getDatabasePath(Constants.DATABASE_NAME)
-            normalizedName.startsWith("$DATASTORE_DIR/") -> {
-                val relativePath = normalizedName.removePrefix("$DATASTORE_DIR/")
-                val baseDir = File(context.filesDir, "datastore")
-                val target = File(baseDir, relativePath)
-                if (target.canonicalPath.startsWith(baseDir.canonicalPath)) target else null
+            normalizedName == "$DATASTORE_DIR/${Constants.SETTINGS_DATASTORE_NAME}.preferences_pb" ||
+                normalizedName == "$DATASTORE_DIR/${Constants.APP_SETTINGS_DATASTORE_NAME}.preferences_pb" -> {
+                val fileName = normalizedName.removePrefix("$DATASTORE_DIR/")
+                File(File(context.filesDir, "datastore"), fileName)
             }
             else -> null
         }
@@ -118,5 +136,6 @@ class BackupManager @Inject constructor(
     private companion object {
         const val DB_ENTRY = "database/bookmt.db"
         const val DATASTORE_DIR = "datastore"
+        const val MAX_RESTORE_FILE_BYTES = 250 * 1024 * 1024L
     }
 }

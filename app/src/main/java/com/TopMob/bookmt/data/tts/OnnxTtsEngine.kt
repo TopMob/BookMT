@@ -121,7 +121,7 @@ class OnnxTtsEngine(
     override fun release() {
         stop()
         voiceSessions.clear()
-        // TODO(onnx): close OrtSession handles and the shared OrtEnvironment here.
+        // SEAM: close OrtSession handles and the shared OrtEnvironment here.
     }
 
     private suspend fun awaitWhilePaused() {

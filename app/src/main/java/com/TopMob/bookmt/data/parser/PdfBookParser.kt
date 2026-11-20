@@ -21,7 +21,7 @@ import java.io.InputStream
  *  3. Build a [com.TopMob.bookmt.domain.model.TableOfContents] from the PDF outline/bookmarks.
  */
 class PdfBookParser(
-    @Suppress("unused") private val dispatchers: DispatcherProvider,
+    private val dispatchers: DispatcherProvider,
 ) : BookParser {
 
     override val format: BookFormat = BookFormat.PDF
@@ -34,5 +34,7 @@ class PdfBookParser(
         BookMetadata(title = fileName.substringBeforeLast('.').ifBlank { fileName })
 
     override suspend fun parse(input: InputStream, fileName: String): BookContent =
-        throw BookParseException("PDF parsing is not yet implemented")
+        kotlinx.coroutines.withContext(dispatchers.io) {
+            throw BookParseException("PDF parsing is not yet implemented")
+        }
 }

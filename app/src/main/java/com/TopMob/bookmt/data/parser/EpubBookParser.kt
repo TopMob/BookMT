@@ -109,10 +109,19 @@ class EpubBookParser(
                         lower == "mimetype"
 
                     if (isTextOrMeta) {
-                        val bytes = zip.readBytes()
-                        if (bytes.size > MAX_ENTRY_BYTES) {
-                            throw BookParseException("EPUB entry exceeds maximum allowed size: ${entry.name}")
+                        val buffer = ByteArray(8192)
+                        val out = java.io.ByteArrayOutputStream()
+                        var entryBytes = 0
+                        while (true) {
+                            val count = zip.read(buffer)
+                            if (count == -1) break
+                            entryBytes += count
+                            if (entryBytes > MAX_ENTRY_BYTES) {
+                                throw BookParseException("EPUB entry exceeds maximum allowed size: ${entry.name}")
+                            }
+                            out.write(buffer, 0, count)
                         }
+                        val bytes = out.toByteArray()
                         totalBytes += bytes.size
                         if (totalBytes > MAX_TOTAL_BYTES) {
                             throw BookParseException("Total uncompressed EPUB content exceeds safety limit")
@@ -227,6 +236,7 @@ class EpubBookParser(
 
     private fun newPullParser(bytes: ByteArray): XmlPullParser = Xml.newPullParser().apply {
         setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
+        runCatching { setFeature("http://xmlpull.org/v1/doc/features.html#process-docdecl", false) }
         setInput(ByteArrayInputStream(bytes), null)
     }
 
