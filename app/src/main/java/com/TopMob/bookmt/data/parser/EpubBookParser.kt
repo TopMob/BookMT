@@ -94,10 +94,32 @@ class EpubBookParser(
 
     private fun readZip(input: InputStream): Map<String, ByteArray> {
         val entries = LinkedHashMap<String, ByteArray>()
+        var totalBytes = 0L
         ZipInputStream(input).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
-                if (!entry.isDirectory) entries[entry.name] = zip.readBytes()
+                if (!entry.isDirectory) {
+                    val lower = entry.name.lowercase()
+                    val isTextOrMeta = lower.endsWith(".xml") ||
+                        lower.endsWith(".opf") ||
+                        lower.endsWith(".ncx") ||
+                        lower.endsWith(".xhtml") ||
+                        lower.endsWith(".html") ||
+                        lower.endsWith(".htm") ||
+                        lower == "mimetype"
+
+                    if (isTextOrMeta) {
+                        val bytes = zip.readBytes()
+                        if (bytes.size > MAX_ENTRY_BYTES) {
+                            throw BookParseException("EPUB entry exceeds maximum allowed size: ${entry.name}")
+                        }
+                        totalBytes += bytes.size
+                        if (totalBytes > MAX_TOTAL_BYTES) {
+                            throw BookParseException("Total uncompressed EPUB content exceeds safety limit")
+                        }
+                        entries[entry.name] = bytes
+                    }
+                }
                 zip.closeEntry()
             }
         }
@@ -237,6 +259,8 @@ class EpubBookParser(
     private data class Opf(val title: String, val author: String?, val spineHrefs: List<String>)
 
     private companion object {
+        const val MAX_ENTRY_BYTES = 25 * 1024 * 1024 // 25 MB per entry
+        const val MAX_TOTAL_BYTES = 100 * 1024 * 1024 // 100 MB total text
         val TITLE = Regex("(?is)<title[^>]*>(.*?)</title>")
         val HEADING = Regex("(?is)<h[1-3][^>]*>(.*?)</h[1-3]>")
         val BODY = Regex("(?is)<body[^>]*>(.*?)</body>")

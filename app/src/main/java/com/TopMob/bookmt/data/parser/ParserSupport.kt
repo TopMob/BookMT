@@ -34,5 +34,20 @@ internal fun assembleContent(
     return BookContent(title, author, chapters, TableOfContents(tocEntries))
 }
 
-/** Reads an InputStream fully as UTF-8 text. Centralized so charset handling is consistent. */
-internal fun ByteArray.decodeAsText(): String = toString(Charsets.UTF_8)
+/**
+ * Decodes a byte array into text, detecting UTF-8 vs Windows-1251 (common in Russian books).
+ */
+internal fun ByteArray.decodeAsText(): String {
+    return try {
+        val decoder = Charsets.UTF_8.newDecoder()
+            .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+            .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+        decoder.decode(java.nio.ByteBuffer.wrap(this)).toString()
+    } catch (_: Exception) {
+        try {
+            toString(java.nio.charset.Charset.forName("windows-1251"))
+        } catch (_: Exception) {
+            toString(Charsets.UTF_8)
+        }
+    }
+}

@@ -100,10 +100,14 @@ class ReaderViewModel @Inject constructor(
             is Resource.Success -> {
                 val content = result.data
                 val startOffset = book?.lastReadPosition ?: 0
+                val pages = withContext(dispatchers.default) {
+                    ReaderPaginator.paginate(content, charBudget = 1500)
+                }
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         content = content,
+                        pages = pages,
                         currentOffset = startOffset,
                     )
                 }
@@ -123,6 +127,22 @@ class ReaderViewModel @Inject constructor(
     fun onScrollOffsetChanged(offset: Int) {
         _uiState.update { it.copy(currentOffset = offset) }
         scheduleProgressSave(offset)
+    }
+
+    fun onPrevPage() {
+        val pages = _uiState.value.pages
+        if (pages.isEmpty()) return
+        val currentIndex = _uiState.value.currentPageIndex
+        val targetIndex = (currentIndex - 1).coerceAtLeast(0)
+        jumpToOffset(pages[targetIndex].startOffset)
+    }
+
+    fun onNextPage() {
+        val pages = _uiState.value.pages
+        if (pages.isEmpty()) return
+        val currentIndex = _uiState.value.currentPageIndex
+        val targetIndex = (currentIndex + 1).coerceAtMost(pages.lastIndex)
+        jumpToOffset(pages[targetIndex].startOffset)
     }
 
     fun onPrevChapter() {
@@ -154,9 +174,18 @@ class ReaderViewModel @Inject constructor(
         scheduleProgressSave(offset)
     }
 
+    fun saveProgressImmediate() {
+        progressSaveJob?.cancel()
+        val offset = _uiState.value.currentOffset
+        val total = _uiState.value.totalLength
+        viewModelScope.launch(dispatchers.io + NonCancellable) {
+            updateProgress(bookId, offset, total)
+        }
+    }
+
     private fun scheduleProgressSave(offset: Int) {
         progressSaveJob?.cancel()
-        progressSaveJob = viewModelScope.launch {
+        progressSaveJob = viewModelScope.launch(dispatchers.io) {
             delay(PROGRESS_SAVE_DEBOUNCE_MS)
             updateProgress(bookId, offset, _uiState.value.totalLength)
         }
@@ -180,12 +209,13 @@ class ReaderViewModel @Inject constructor(
 
     /** Called when the reader leaves the foreground; persists the elapsed reading time. */
     fun onReadingPaused() {
+        saveProgressImmediate()
         val start = sessionStartMs ?: return
         sessionStartMs = null
         val elapsed = System.currentTimeMillis() - start
         if (elapsed <= 0L) return
         // NonCancellable: the write must survive the scope being torn down on navigate-back.
-        viewModelScope.launch(NonCancellable) { bookRepository.addReadingTime(bookId, elapsed) }
+        viewModelScope.launch(dispatchers.io + NonCancellable) { bookRepository.addReadingTime(bookId, elapsed) }
     }
 
     /* -------- Settings -------- */
@@ -262,6 +292,7 @@ class ReaderViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        saveProgressImmediate()
         readAloud.stop()
     }
 

@@ -44,6 +44,9 @@ class BackupManager @Inject constructor(
     suspend fun import(source: Uri): Result<Unit> = withContext(dispatchers.io) {
         runCatching {
             checkpoint()
+            deleteWalShm()
+            runCatching { database.openHelper.close() }
+
             val input = context.contentResolver.openInputStream(source)
                 ?: error("Cannot open input stream")
             var restoredAnything = false
@@ -82,12 +85,22 @@ class BackupManager @Inject constructor(
             .filter { it.second.exists() }
     }
 
-    /** Maps a ZIP entry name back to its on-device destination, or null if unknown. */
-    private fun fileForEntry(name: String): File? = when {
-        name == DB_ENTRY -> context.getDatabasePath(Constants.DATABASE_NAME)
-        name.startsWith("$DATASTORE_DIR/") ->
-            File(File(context.filesDir, "datastore"), name.removePrefix("$DATASTORE_DIR/"))
-        else -> null
+    /** Maps a ZIP entry name back to its on-device destination, or null if unknown / outside target. */
+    private fun fileForEntry(name: String): File? {
+        val normalizedName = name.replace('\\', '/')
+        if (normalizedName.contains("../") || normalizedName.startsWith("../") || normalizedName == "..") {
+            return null
+        }
+        return when {
+            normalizedName == DB_ENTRY -> context.getDatabasePath(Constants.DATABASE_NAME)
+            normalizedName.startsWith("$DATASTORE_DIR/") -> {
+                val relativePath = normalizedName.removePrefix("$DATASTORE_DIR/")
+                val baseDir = File(context.filesDir, "datastore")
+                val target = File(baseDir, relativePath)
+                if (target.canonicalPath.startsWith(baseDir.canonicalPath)) target else null
+            }
+            else -> null
+        }
     }
 
     private fun deleteWalShm() {
