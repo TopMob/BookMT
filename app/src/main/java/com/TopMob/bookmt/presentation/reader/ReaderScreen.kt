@@ -42,6 +42,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.TopMob.bookmt.domain.tts.TtsStatus
+import com.TopMob.bookmt.presentation.reader.components.BookSearchPanel
 import com.TopMob.bookmt.presentation.reader.components.NotesBookmarksPanel
 import com.TopMob.bookmt.presentation.reader.components.PagedReaderContent
 import com.TopMob.bookmt.presentation.reader.components.ReaderBottomBar
@@ -142,6 +143,7 @@ fun ReaderScreen(
             title = state.currentChapterTitle ?: state.book?.title.orEmpty(),
             visible = state.showControls,
             onBack = onNavigateBack,
+            onOpenSearch = { viewModel.onShowOverlay(ReaderOverlay.SEARCH) },
             onOpenToc = { viewModel.onShowOverlay(ReaderOverlay.TABLE_OF_CONTENTS) },
             onOpenNotes = { viewModel.onShowOverlay(ReaderOverlay.NOTES) },
             onToggleTheme = {
@@ -219,6 +221,27 @@ fun ReaderScreen(
                     viewModel.jumpToOffset(it.offset)
                     viewModel.onDismissOverlay()
                 },
+            )
+        }
+
+        // In-book search side drawer
+        ReaderSideDrawer(
+            visible = state.overlay == ReaderOverlay.SEARCH,
+            onDismiss = {
+                viewModel.onClearSearch()
+                viewModel.onDismissOverlay()
+            },
+        ) {
+            BookSearchPanel(
+                query = state.searchQuery,
+                results = state.searchResults,
+                isSearching = state.isSearching,
+                onQueryChange = viewModel::onSearchQueryChanged,
+                onResultClick = { match ->
+                    viewModel.jumpToOffset(match.globalOffset)
+                    viewModel.onDismissOverlay()
+                },
+                onClear = viewModel::onClearSearch,
             )
         }
     }

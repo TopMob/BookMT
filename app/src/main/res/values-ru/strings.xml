@@ -133,6 +133,12 @@
     <string name="reader_time_remaining_hours_min">осталось %1$d ч %2$d мин</string>
     <string name="reader_export_notes">Экспорт цитат</string>
     <string name="reader_notes_copied">Цитаты скопированы в буфер обмена</string>
+    <string name="reader_search_in_book">Поиск по книге</string>
+    <string name="reader_search_hint">Поиск слов или фраз…</string>
+    <string name="reader_search_matches_found">Найдено совпадений: %1$d</string>
+    <string name="reader_search_no_matches">Ничего не найдено</string>
+    <string name="reader_search_min_chars">Введите минимум 2 символа для поиска</string>
+    <string name="reader_search_clear">Очистить поиск</string>
 
     <!-- Generic -->
     <string name="action_back">Назад</string>

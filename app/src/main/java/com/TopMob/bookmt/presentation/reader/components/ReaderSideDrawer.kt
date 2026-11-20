@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -25,12 +27,16 @@ import com.TopMob.bookmt.R
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,9 +44,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.TopMob.bookmt.domain.model.BookSearchResult
 import com.TopMob.bookmt.domain.model.Bookmark
 import com.TopMob.bookmt.domain.model.TocEntry
 
@@ -194,6 +204,117 @@ fun TableOfContentsPanel(
                         .clickable { onEntryClick(entry) }
                         .padding(start = (entry.level * 16).dp, top = 12.dp, bottom = 12.dp),
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun BookSearchPanel(
+    query: String,
+    results: List<BookSearchResult>,
+    isSearching: Boolean,
+    onQueryChange: (String) -> Unit,
+    onResultClick: (BookSearchResult) -> Unit,
+    onClear: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text(
+            text = stringResource(R.string.reader_search_in_book),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text(stringResource(R.string.reader_search_hint)) },
+            leadingIcon = {
+                Icon(Icons.Filled.Search, contentDescription = null)
+            },
+            trailingIcon = {
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = onClear) {
+                        Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.reader_search_clear))
+                    }
+                }
+            },
+            singleLine = true,
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        when {
+            isSearching -> {
+                Box(modifier = Modifier.fillMaxWidth().padding(top = 24.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                }
+            }
+            query.trim().length < 2 -> {
+                Text(
+                    text = stringResource(R.string.reader_search_min_chars),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            results.isEmpty() -> {
+                Text(
+                    text = stringResource(R.string.reader_search_no_matches),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            else -> {
+                Text(
+                    text = stringResource(R.string.reader_search_matches_found, results.size),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(items = results, key = { "${it.chapterIndex}_${it.globalOffset}" }) { item ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onResultClick(item) }
+                                .padding(vertical = 10.dp),
+                        ) {
+                            Text(
+                                text = item.chapterTitle,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            val annotatedSnippet = buildAnnotatedString {
+                                val s = item.snippet
+                                val start = item.matchStartInSnippet.coerceIn(0, s.length)
+                                val end = item.matchEndInSnippet.coerceIn(start, s.length)
+                                append(s.substring(0, start))
+                                withStyle(
+                                    SpanStyle(
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                ) {
+                                    append(s.substring(start, end))
+                                }
+                                append(s.substring(end))
+                            }
+                            Text(
+                                text = annotatedSnippet,
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        HorizontalDivider()
+                    }
+                }
             }
         }
     }

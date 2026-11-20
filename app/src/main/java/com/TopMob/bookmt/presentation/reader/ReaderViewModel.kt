@@ -8,6 +8,7 @@ import com.TopMob.bookmt.core.common.Resource
 import com.TopMob.bookmt.data.tts.DefaultVoices
 import com.TopMob.bookmt.domain.model.Bookmark
 import com.TopMob.bookmt.domain.model.BookmarkType
+import com.TopMob.bookmt.domain.model.BookSearchResult
 import com.TopMob.bookmt.domain.model.ReaderSettings
 import com.TopMob.bookmt.domain.model.ReadingSpeedEstimator
 import com.TopMob.bookmt.domain.repository.BookRepository
@@ -16,6 +17,7 @@ import com.TopMob.bookmt.domain.usecase.ExportAnnotationsUseCase
 import com.TopMob.bookmt.domain.usecase.ManageBookmarksUseCase
 import com.TopMob.bookmt.domain.usecase.OpenBookUseCase
 import com.TopMob.bookmt.domain.usecase.ReadAloudUseCase
+import com.TopMob.bookmt.domain.usecase.SearchBookContentUseCase
 import com.TopMob.bookmt.domain.usecase.UpdateReadingProgressUseCase
 import com.TopMob.bookmt.presentation.navigation.Screen
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -63,6 +65,8 @@ class ReaderViewModel @Inject constructor(
 
     private val readingSpeedEstimator = ReadingSpeedEstimator()
     private val exportAnnotationsUseCase = ExportAnnotationsUseCase()
+    private val searchBookContentUseCase = SearchBookContentUseCase()
+    private var searchJob: Job? = null
     private var lastPageTurnTimestampMs: Long = System.currentTimeMillis()
     private var lastRecordedOffset: Int = 0
 
@@ -236,6 +240,33 @@ class ReaderViewModel @Inject constructor(
         onExported(markdown)
     }
 
+    /* -------- In-book search -------- */
+
+    fun onSearchQueryChanged(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
+        searchJob?.cancel()
+        if (query.trim().length < SearchBookContentUseCase.MIN_QUERY_LENGTH) {
+            _uiState.update { it.copy(searchResults = emptyList(), isSearching = false) }
+            return
+        }
+        _uiState.update { it.copy(isSearching = true) }
+        searchJob = viewModelScope.launch(dispatchers.default) {
+            delay(SEARCH_DEBOUNCE_MS)
+            val content = _uiState.value.content
+            val results = if (content != null) {
+                searchBookContentUseCase(content, query)
+            } else {
+                emptyList()
+            }
+            _uiState.update { it.copy(searchResults = results, isSearching = false) }
+        }
+    }
+
+    fun onClearSearch() {
+        searchJob?.cancel()
+        _uiState.update { it.copy(searchQuery = "", searchResults = emptyList(), isSearching = false) }
+    }
+
     fun saveProgressImmediate() {
         progressSaveJob?.cancel()
         val offset = _uiState.value.currentOffset
@@ -360,6 +391,7 @@ class ReaderViewModel @Inject constructor(
 
     private companion object {
         const val PROGRESS_SAVE_DEBOUNCE_MS = 800L
+        const val SEARCH_DEBOUNCE_MS = 300L
         const val SNIPPET_LENGTH = 120
     }
 }

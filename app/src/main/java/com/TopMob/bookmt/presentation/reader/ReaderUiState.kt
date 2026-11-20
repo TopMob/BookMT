@@ -4,11 +4,12 @@ import androidx.compose.runtime.Immutable
 import com.TopMob.bookmt.domain.model.Book
 import com.TopMob.bookmt.domain.model.BookContent
 import com.TopMob.bookmt.domain.model.Bookmark
+import com.TopMob.bookmt.domain.model.BookSearchResult
 import com.TopMob.bookmt.domain.model.ReaderSettings
 import com.TopMob.bookmt.domain.tts.TtsPlaybackState
 
 /** Which transient overlay (if any) is currently shown over the reading surface. */
-enum class ReaderOverlay { NONE, SETTINGS, NOTES, TABLE_OF_CONTENTS }
+enum class ReaderOverlay { NONE, SETTINGS, NOTES, TABLE_OF_CONTENTS, SEARCH }
 
 @Immutable
 data class ReaderUiState(
@@ -25,6 +26,9 @@ data class ReaderUiState(
     val wordsPerMinute: Int = 220,
     val minutesRemainingInChapter: Int? = null,
     val minutesRemainingInBook: Int? = null,
+    val searchQuery: String = "",
+    val searchResults: List<BookSearchResult> = emptyList(),
+    val isSearching: Boolean = false,
     val errorMessage: String? = null,
 ) {
     val totalLength: Int get() = content?.totalLength ?: 0

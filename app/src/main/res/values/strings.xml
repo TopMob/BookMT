@@ -133,6 +133,12 @@
     <string name="reader_time_remaining_hours_min">%1$d h %2$d min left</string>
     <string name="reader_export_notes">Export notes</string>
     <string name="reader_notes_copied">Notes copied to clipboard</string>
+    <string name="reader_search_in_book">Search in book</string>
+    <string name="reader_search_hint">Search words or phrases…</string>
+    <string name="reader_search_matches_found">%1$d matches found</string>
+    <string name="reader_search_no_matches">No matches found</string>
+    <string name="reader_search_min_chars">Type at least 2 characters to search</string>
+    <string name="reader_search_clear">Clear search</string>
 
     <!-- Generic -->
     <string name="action_back">Back</string>

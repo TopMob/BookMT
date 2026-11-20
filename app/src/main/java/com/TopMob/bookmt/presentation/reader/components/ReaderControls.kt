@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.SkipNext
@@ -50,6 +51,7 @@ fun ReaderTopBar(
     title: String,
     visible: Boolean,
     onBack: () -> Unit,
+    onOpenSearch: () -> Unit,
     onOpenToc: () -> Unit,
     onOpenNotes: () -> Unit,
     onToggleTheme: () -> Unit,
@@ -73,6 +75,12 @@ fun ReaderTopBar(
                 }
             },
             actions = {
+                IconButton(onClick = onOpenSearch) {
+                    Icon(
+                        Icons.Filled.Search,
+                        contentDescription = stringResource(R.string.reader_search_in_book),
+                    )
+                }
                 IconButton(onClick = onOpenToc) {
                     Icon(
                         Icons.AutoMirrored.Filled.List,
